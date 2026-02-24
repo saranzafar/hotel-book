@@ -687,3 +687,97 @@ export const getPaymentHistoryPage = async (subscriptionId, page = 1, pageSize =
         throw mapQueryError(error, 'Failed to fetch payment history');
     }
 };
+
+const formatMonthLabel = (monthKey) => {
+    const [year, month] = String(monthKey).split('-').map(Number);
+    const date = new Date(year, (month || 1) - 1, 1);
+    return date.toLocaleDateString('en-US', { month: 'short' });
+};
+
+export const getDashboardSnapshot = async () => {
+    try {
+        await syncExpiredSubscriptions();
+        const db = await getDBAsync();
+
+        const result = await db.getFirstAsync(`
+          SELECT
+            (SELECT COUNT(*) FROM clients) AS totalClients,
+            (SELECT COUNT(*) FROM mess_subscriptions) AS totalSubscriptions,
+            (SELECT COUNT(*) FROM mess_subscriptions WHERE isActive = 1) AS activeSubscriptions,
+            (SELECT COUNT(*) FROM mess_subscriptions WHERE isActive = 0) AS expiredSubscriptions,
+            (SELECT COALESCE(SUM(amountPaid), 0) FROM mess_subscriptions) AS lifetimeRevenue,
+            (SELECT COALESCE(SUM(totalAmount), 0) FROM mess_subscriptions WHERE isActive = 1) AS activeTotalAmount,
+            (SELECT COALESCE(SUM(amountPaid), 0) FROM mess_subscriptions WHERE isActive = 1) AS activePaidAmount,
+            (SELECT COALESCE(SUM(totalAmount - amountPaid), 0) FROM mess_subscriptions WHERE isActive = 1 AND (totalAmount - amountPaid) > 0) AS pendingAmount,
+            (SELECT COUNT(*) FROM mess_subscriptions WHERE isActive = 1 AND (totalAmount - amountPaid) > 0) AS pendingCount,
+            (SELECT COUNT(*) FROM mess_subscriptions WHERE isActive = 1 AND date(endDate) BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+7 days')) AS expiringSoonCount,
+            (SELECT COUNT(*) FROM mess_subscriptions WHERE isActive = 1 AND date(startDate) >= date('now', 'start of month', 'localtime')) AS newSubscriptionsThisMonth,
+            (SELECT COALESCE(SUM(amount), 0) FROM payment_history WHERE date(paymentDate) BETWEEN date('now', 'start of month', 'localtime') AND date('now', 'localtime')) AS revenueThisMonth
+        `);
+
+        return {
+            totalClients: Number(result?.totalClients || 0),
+            totalSubscriptions: Number(result?.totalSubscriptions || 0),
+            activeSubscriptions: Number(result?.activeSubscriptions || 0),
+            expiredSubscriptions: Number(result?.expiredSubscriptions || 0),
+            lifetimeRevenue: Number(result?.lifetimeRevenue || 0),
+            activeTotalAmount: Number(result?.activeTotalAmount || 0),
+            activePaidAmount: Number(result?.activePaidAmount || 0),
+            pendingAmount: Number(result?.pendingAmount || 0),
+            pendingCount: Number(result?.pendingCount || 0),
+            expiringSoonCount: Number(result?.expiringSoonCount || 0),
+            newSubscriptionsThisMonth: Number(result?.newSubscriptionsThisMonth || 0),
+            revenueThisMonth: Number(result?.revenueThisMonth || 0),
+        };
+    } catch (error) {
+        console.error('Error fetching dashboard snapshot:', error);
+        throw mapQueryError(error, 'Failed to fetch dashboard snapshot');
+    }
+};
+
+export const getDashboardRevenueTrend = async (months = 6) => {
+    try {
+        const db = await getDBAsync();
+        const windowSize = Math.max(3, Math.min(12, Number(months) || 6));
+        const rows = await db.getAllAsync(
+            `SELECT
+               strftime('%Y-%m', paymentDate) AS monthKey,
+               COALESCE(SUM(amount), 0) AS total
+             FROM payment_history
+             WHERE date(paymentDate) >= date('now', 'start of month', ?, 'localtime')
+             GROUP BY monthKey
+             ORDER BY monthKey ASC`,
+            [`-${windowSize - 1} months`]
+        );
+
+        const monthMap = new Map(rows.map((row) => [row.monthKey, Number(row.total || 0)]));
+        const series = [];
+        const now = new Date();
+        for (let i = windowSize - 1; i >= 0; i -= 1) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            series.push({
+                monthKey: key,
+                monthLabel: formatMonthLabel(key),
+                total: monthMap.get(key) || 0,
+            });
+        }
+
+        const peak = Math.max(...series.map((item) => item.total), 0);
+        const previousMonth = series.length > 1 ? series[series.length - 2].total : 0;
+        const currentMonth = series.length ? series[series.length - 1].total : 0;
+        const changePercent =
+            previousMonth > 0 ? ((currentMonth - previousMonth) / previousMonth) * 100 : 0;
+
+        return {
+            series,
+            peak,
+            currentMonth,
+            previousMonth,
+            changePercent: Number(changePercent.toFixed(1)),
+        };
+    } catch (error) {
+        console.error('Error fetching dashboard revenue trend:', error);
+        throw mapQueryError(error, 'Failed to fetch dashboard revenue trend');
+    }
+};
