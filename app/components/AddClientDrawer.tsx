@@ -70,33 +70,48 @@ export default function AddClientDrawer({ visible, onClose, onClientAdded }) {
     };
 
     return (
-        <Modal visible={visible} animationType="slide" transparent={true}>
+        <Modal visible={visible} animationType="fade" transparent={true} statusBarTranslucent>
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.container}
             >
-                <View style={styles.overlay} />
+                {/* Darker, moodier backdrop */}
+                <TouchableOpacity
+                    style={styles.overlay}
+                    activeOpacity={1}
+                    onPress={onClose}
+                    disabled={loading}
+                />
 
-                <View style={styles.drawerContent}>
+                {/* Floating Bottom Sheet */}
+                <View style={styles.floatingSheet}>
                     {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.headerTitle}>Add New Client</Text>
-                        <TouchableOpacity onPress={onClose} disabled={loading}>
-                            <Ionicons name="close" size={28} color="#333" />
+                        <View style={styles.iconContainer}>
+                            <Ionicons name="person-add" size={24} color="#E53935" />
+                        </View>
+                        <View style={styles.headerTextContainer}>
+                            <Text style={styles.headerTitle}>New Client</Text>
+                        </View>
+                        <TouchableOpacity
+                            onPress={onClose}
+                            disabled={loading}
+                            style={styles.closeButton}
+                        >
+                            <Ionicons name="close" size={24} color="#8E8E93" />
                         </TouchableOpacity>
                     </View>
 
                     {/* Form Content */}
                     <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-                        {/* Name Input */}
+
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Client Name *</Text>
+                            <Text style={styles.label}>FULL NAME <Text style={styles.required}>*</Text></Text>
                             <View style={styles.inputWrapper}>
-                                <Ionicons name="person" size={18} color="#999" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Enter full name"
-                                    placeholderTextColor="#ccc"
+                                    placeholder="John Doe"
+                                    placeholderTextColor="#A1A1AA"
                                     value={name}
                                     onChangeText={setName}
                                     editable={!loading}
@@ -104,15 +119,13 @@ export default function AddClientDrawer({ visible, onClose, onClientAdded }) {
                             </View>
                         </View>
 
-                        {/* Phone Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Phone Number *</Text>
+                            <Text style={styles.label}>PHONE NUMBER <Text style={styles.required}>*</Text></Text>
                             <View style={styles.inputWrapper}>
-                                <Ionicons name="call" size={18} color="#999" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Enter 10-digit phone number"
-                                    placeholderTextColor="#ccc"
+                                    placeholder="98765 43210"
+                                    placeholderTextColor="#A1A1AA"
                                     value={phone}
                                     onChangeText={setPhone}
                                     keyboardType="phone-pad"
@@ -122,32 +135,29 @@ export default function AddClientDrawer({ visible, onClose, onClientAdded }) {
                             </View>
                         </View>
 
-                        {/* Email Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Email (Optional)</Text>
+                            <Text style={styles.label}>EMAIL ADDRESS</Text>
                             <View style={styles.inputWrapper}>
-                                <Ionicons name="mail" size={18} color="#999" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Enter email address"
-                                    placeholderTextColor="#ccc"
+                                    placeholder="john@example.com"
+                                    placeholderTextColor="#A1A1AA"
                                     value={email}
                                     onChangeText={setEmail}
                                     keyboardType="email-address"
+                                    autoCapitalize="none"
                                     editable={!loading}
                                 />
                             </View>
                         </View>
 
-                        {/* Address Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Address (Optional)</Text>
+                            <Text style={styles.label}>ADDRESS</Text>
                             <View style={styles.inputWrapper}>
-                                <Ionicons name="location" size={18} color="#999" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Enter address"
-                                    placeholderTextColor="#ccc"
+                                    placeholder="Room 101, Building Name"
+                                    placeholderTextColor="#A1A1AA"
                                     value={address}
                                     onChangeText={setAddress}
                                     editable={!loading}
@@ -155,15 +165,13 @@ export default function AddClientDrawer({ visible, onClose, onClientAdded }) {
                             </View>
                         </View>
 
-                        {/* Notes Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Notes (Optional)</Text>
+                            <Text style={styles.label}>NOTES</Text>
                             <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
-                                <Ionicons name="document-text" size={18} color="#999" style={styles.inputIcon} />
                                 <TextInput
                                     style={[styles.input, styles.textArea]}
-                                    placeholder="Add any notes"
-                                    placeholderTextColor="#ccc"
+                                    placeholder="Dietary preferences, specific requirements..."
+                                    placeholderTextColor="#A1A1AA"
                                     value={notes}
                                     onChangeText={setNotes}
                                     multiline={true}
@@ -173,26 +181,22 @@ export default function AddClientDrawer({ visible, onClose, onClientAdded }) {
                                 />
                             </View>
                         </View>
+
+                        <View style={{ height: 10 }} />
                     </ScrollView>
 
                     {/* Action Buttons */}
                     <View style={styles.buttonContainer}>
                         <TouchableOpacity
-                            style={[styles.button, styles.cancelButton]}
-                            onPress={onClose}
-                            disabled={loading}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
                             style={[styles.button, styles.submitButton, loading && styles.submitButtonDisabled]}
                             onPress={handleAddClient}
                             disabled={loading}
+                            activeOpacity={0.8}
                         >
-                            <Ionicons name="checkmark" size={20} color="#fff" style={styles.buttonIcon} />
                             <Text style={styles.submitButtonText}>
-                                {loading ? 'Adding...' : 'Add Client'}
+                                {loading ? 'Saving...' : 'Add Client'}
                             </Text>
+                            {!loading && <Ionicons name="arrow-forward" size={20} color="#fff" />}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -208,103 +212,122 @@ const styles = StyleSheet.create({
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
     },
-    drawerContent: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingBottom: 20,
-        maxHeight: '90%',
+    floatingSheet: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 32,
+        marginHorizontal: 16,
+        marginBottom: Platform.OS === 'ios' ? 36 : 24,
+        paddingTop: 24,
+        paddingBottom: 24,
+        maxHeight: '88%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 15,
     },
     header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
+        paddingHorizontal: 24,
+        marginBottom: 24,
+    },
+    iconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 24,
+        backgroundColor: '#FFEBEE', // Very light tint of your red
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    headerTextContainer: {
+        flex: 1,
     },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
+        fontSize: 22,
+        fontWeight: '900',
+        color: '#1C1C1E',
+        letterSpacing: -0.5,
     },
-    formContainer: {
-        paddingHorizontal: 20,
-        paddingTop: 15,
-        maxHeight: 400,
-    },
-    inputGroup: {
-        marginBottom: 16,
-    },
-    label: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 6,
-    },
-    inputWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f5f5f5',
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-        paddingHorizontal: 12,
-    },
-    inputIcon: {
-        marginRight: 8,
-    },
-    input: {
-        flex: 1,
-        paddingVertical: 12,
-        fontSize: 14,
-        color: '#333',
-    },
-    textAreaWrapper: {
-        alignItems: 'flex-start',
-        paddingVertical: 8,
-    },
-    textArea: {
-        paddingVertical: 10,
-    },
-    buttonContainer: {
-        flexDirection: 'row',
-        gap: 10,
-        paddingHorizontal: 20,
-        marginTop: 20,
-    },
-    button: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 10,
-        flexDirection: 'row',
+    closeButton: {
+        backgroundColor: '#F2F2F7',
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    cancelButton: {
-        backgroundColor: '#e0e0e0',
+    formContainer: {
+        paddingHorizontal: 24,
+        maxHeight: 450,
     },
-    cancelButtonText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#333',
+    inputGroup: {
+        marginBottom: 20,
+    },
+    label: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#8E8E93',
+        marginBottom: 8,
+        marginLeft: 4,
+        letterSpacing: 1.2,
+    },
+    required: {
+        color: '#E53935',
+    },
+    inputWrapper: {
+        backgroundColor: '#F5F5F7', // Apple's signature plush gray
+        borderRadius: 20, // High border radius for pill-like feel
+        paddingHorizontal: 20,
+        minHeight: 60, // Very tall, comfortable touch target
+        justifyContent: 'center',
+    },
+    input: {
+        fontSize: 17, // Standard modern body text size
+        fontWeight: '500',
+        color: '#1C1C1E',
+    },
+    textAreaWrapper: {
+        paddingTop: 16,
+        paddingBottom: 16,
+        alignItems: 'flex-start',
+    },
+    textArea: {
+        minHeight: 80,
+        paddingTop: 0,
+    },
+    buttonContainer: {
+        paddingHorizontal: 24,
+        marginTop: 16,
+    },
+    button: {
+        height: 64, // Massive, premium button height
+        borderRadius: 32, // Fully rounded pill shape
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
     },
     submitButton: {
-        backgroundColor: '#E53935',
+        backgroundColor: '#E53935', // Your original brand color!
+        shadowColor: '#E53935',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
     },
     submitButtonDisabled: {
         opacity: 0.6,
+        shadowOpacity: 0,
+        elevation: 0,
     },
     submitButtonText: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#fff',
-        marginLeft: 6,
-    },
-    buttonIcon: {
-        marginRight: 4,
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        letterSpacing: 0.5,
     },
 });

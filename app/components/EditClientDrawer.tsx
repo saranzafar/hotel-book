@@ -68,21 +68,21 @@ export default function EditClientDrawer({ visible, onClose, client, onClientUpd
 
     const handleDeleteClient = () => {
         Alert.alert(
-            'Delete Client',
-            'Are you sure you want to delete this client? This action cannot be undone.',
+            'Delete Member',
+            'Are you sure you want to remove this member? This action is permanent.',
             [
-                { text: 'Cancel', onPress: () => { }, style: 'cancel' },
+                { text: 'Cancel', style: 'cancel' },
                 {
-                    text: 'Delete',
+                    text: 'Delete Member',
                     onPress: async () => {
                         try {
                             setLoading(true);
                             await deleteClient(client.id);
-                            showSuccess('Client deleted successfully');
+                            showSuccess('Member removed');
                             onClose();
                             onClientUpdated();
                         } catch (error) {
-                            showError(getErrorMessage(error, 'Failed to delete client'));
+                            showError(getErrorMessage(error, 'Failed to delete'));
                         } finally {
                             setLoading(false);
                         }
@@ -96,33 +96,47 @@ export default function EditClientDrawer({ visible, onClose, client, onClientUpd
     if (!client) return null;
 
     return (
-        <Modal visible={visible} animationType="slide" transparent={true}>
+        <Modal visible={visible} animationType="fade" transparent={true} statusBarTranslucent>
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.container}
             >
-                <View style={styles.overlay} />
+                {/* Backdrop */}
+                <TouchableOpacity
+                    style={styles.overlay}
+                    activeOpacity={1}
+                    onPress={onClose}
+                    disabled={loading}
+                />
 
-                <View style={styles.drawerContent}>
+                {/* Floating Sheet */}
+                <View style={styles.floatingSheet}>
                     {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.headerTitle}>Edit Client</Text>
-                        <TouchableOpacity onPress={onClose} disabled={loading}>
-                            <Ionicons name="close" size={28} color="#333" />
+                        <View style={styles.iconContainer}>
+                            <Ionicons name="create" size={24} color="#E53935" />
+                        </View>
+                        <View style={styles.headerTextContainer}>
+                            <Text style={styles.headerTitle}>Edit Member</Text>
+                        </View>
+                        <TouchableOpacity
+                            onPress={onClose}
+                            disabled={loading}
+                            style={styles.closeButton}
+                        >
+                            <Ionicons name="close" size={24} color="#8E8E93" />
                         </TouchableOpacity>
                     </View>
 
                     {/* Form Content */}
                     <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-                        {/* Name Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Client Name *</Text>
+                            <Text style={styles.label}>FULL NAME <Text style={styles.required}>*</Text></Text>
                             <View style={styles.inputWrapper}>
-                                <Ionicons name="person" size={18} color="#999" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Enter full name"
-                                    placeholderTextColor="#ccc"
+                                    placeholder="e.g. John Doe"
+                                    placeholderTextColor="#A1A1AA"
                                     value={name}
                                     onChangeText={setName}
                                     editable={!loading}
@@ -130,15 +144,13 @@ export default function EditClientDrawer({ visible, onClose, client, onClientUpd
                             </View>
                         </View>
 
-                        {/* Phone Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Phone Number *</Text>
+                            <Text style={styles.label}>PHONE NUMBER <Text style={styles.required}>*</Text></Text>
                             <View style={styles.inputWrapper}>
-                                <Ionicons name="call" size={18} color="#999" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Enter phone number"
-                                    placeholderTextColor="#ccc"
+                                    placeholder="e.g. 9876543210"
+                                    placeholderTextColor="#A1A1AA"
                                     value={phone}
                                     onChangeText={setPhone}
                                     keyboardType="phone-pad"
@@ -148,32 +160,29 @@ export default function EditClientDrawer({ visible, onClose, client, onClientUpd
                             </View>
                         </View>
 
-                        {/* Email Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Email (Optional)</Text>
+                            <Text style={styles.label}>EMAIL ADDRESS</Text>
                             <View style={styles.inputWrapper}>
-                                <Ionicons name="mail" size={18} color="#999" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Enter email address"
-                                    placeholderTextColor="#ccc"
+                                    placeholder="e.g. john@example.com"
+                                    placeholderTextColor="#A1A1AA"
                                     value={email}
                                     onChangeText={setEmail}
                                     keyboardType="email-address"
+                                    autoCapitalize="none"
                                     editable={!loading}
                                 />
                             </View>
                         </View>
 
-                        {/* Address Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Address (Optional)</Text>
+                            <Text style={styles.label}>ADDRESS</Text>
                             <View style={styles.inputWrapper}>
-                                <Ionicons name="location" size={18} color="#999" style={styles.inputIcon} />
                                 <TextInput
                                     style={styles.input}
-                                    placeholder="Enter address"
-                                    placeholderTextColor="#ccc"
+                                    placeholder="Room number, Street, City"
+                                    placeholderTextColor="#A1A1AA"
                                     value={address}
                                     onChangeText={setAddress}
                                     editable={!loading}
@@ -181,15 +190,13 @@ export default function EditClientDrawer({ visible, onClose, client, onClientUpd
                             </View>
                         </View>
 
-                        {/* Notes Input */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Notes (Optional)</Text>
+                            <Text style={styles.label}>NOTES</Text>
                             <View style={[styles.inputWrapper, styles.textAreaWrapper]}>
-                                <Ionicons name="document-text" size={18} color="#999" style={styles.inputIcon} />
                                 <TextInput
                                     style={[styles.input, styles.textArea]}
-                                    placeholder="Add any notes"
-                                    placeholderTextColor="#ccc"
+                                    placeholder="Special instructions..."
+                                    placeholderTextColor="#A1A1AA"
                                     value={notes}
                                     onChangeText={setNotes}
                                     multiline={true}
@@ -204,29 +211,23 @@ export default function EditClientDrawer({ visible, onClose, client, onClientUpd
                     {/* Action Buttons */}
                     <View style={styles.buttonContainer}>
                         <TouchableOpacity
-                            style={[styles.button, styles.deleteButton]}
+                            style={styles.deleteCircle}
                             onPress={handleDeleteClient}
                             disabled={loading}
                         >
-                            <Ionicons name="trash" size={18} color="#fff" />
-                            <Text style={styles.deleteButtonText}>Delete</Text>
+                            <Ionicons name="trash-outline" size={24} color="#E53935" />
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.button, styles.cancelButton]}
-                            onPress={onClose}
-                            disabled={loading}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
+
                         <TouchableOpacity
                             style={[styles.button, styles.submitButton, loading && styles.submitButtonDisabled]}
                             onPress={handleUpdateClient}
                             disabled={loading}
+                            activeOpacity={0.8}
                         >
-                            <Ionicons name="checkmark" size={18} color="#fff" style={styles.buttonIcon} />
                             <Text style={styles.submitButtonText}>
-                                {loading ? 'Saving...' : 'Save'}
+                                {loading ? 'Saving...' : 'Update Member'}
                             </Text>
+                            {!loading && <Ionicons name="checkmark" size={22} color="#fff" />}
                         </TouchableOpacity>
                     </View>
                 </View>
@@ -242,112 +243,133 @@ const styles = StyleSheet.create({
     },
     overlay: {
         ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.5)',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
     },
-    drawerContent: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingBottom: 20,
-        maxHeight: '90%',
+    floatingSheet: {
+        backgroundColor: '#FFFFFF',
+        borderRadius: 32,
+        marginHorizontal: 16,
+        marginBottom: Platform.OS === 'ios' ? 36 : 24,
+        paddingTop: 24,
+        paddingBottom: 24,
+        maxHeight: '88%',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.15,
+        shadowRadius: 20,
+        elevation: 15,
     },
     header: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
+        paddingHorizontal: 24,
+        marginBottom: 24,
+    },
+    iconContainer: {
+        width: 48,
+        height: 48,
+        borderRadius: 20,
+        backgroundColor: '#FFEBEE',
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginRight: 16,
+    },
+    headerTextContainer: {
+        flex: 1,
     },
     headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
+        fontSize: 22,
+        fontWeight: '900',
+        color: '#1C1C1E',
+        letterSpacing: -0.5,
     },
-    formContainer: {
-        paddingHorizontal: 20,
-        paddingTop: 15,
-        maxHeight: 400,
-    },
-    inputGroup: {
-        marginBottom: 16,
-    },
-    label: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 6,
-    },
-    inputWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f5f5f5',
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-        paddingHorizontal: 12,
-    },
-    inputIcon: {
-        marginRight: 8,
-    },
-    input: {
-        flex: 1,
-        paddingVertical: 12,
-        fontSize: 14,
-        color: '#333',
-    },
-    textAreaWrapper: {
-        alignItems: 'flex-start',
-        paddingVertical: 8,
-    },
-    textArea: {
-        paddingVertical: 10,
-    },
-    buttonContainer: {
-        flexDirection: 'row',
-        gap: 8,
-        paddingHorizontal: 20,
-        marginTop: 20,
-    },
-    button: {
-        flex: 1,
-        paddingVertical: 12,
-        borderRadius: 10,
-        flexDirection: 'row',
+    closeButton: {
+        backgroundColor: '#F2F2F7',
+        width: 36,
+        height: 36,
+        borderRadius: 18,
         justifyContent: 'center',
         alignItems: 'center',
     },
-    deleteButton: {
-        backgroundColor: '#E74C3C',
+    formContainer: {
+        paddingHorizontal: 24,
+        maxHeight: 450,
     },
-    deleteButtonText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#fff',
-        marginLeft: 6,
+    inputGroup: {
+        marginBottom: 20,
     },
-    cancelButton: {
-        backgroundColor: '#e0e0e0',
+    label: {
+        fontSize: 11,
+        fontWeight: '800',
+        color: '#8E8E93',
+        marginBottom: 8,
+        marginLeft: 4,
+        letterSpacing: 1.2,
     },
-    cancelButtonText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#333',
+    required: {
+        color: '#E53935',
+    },
+    inputWrapper: {
+        backgroundColor: '#F5F5F7',
+        borderRadius: 20,
+        paddingHorizontal: 20,
+        minHeight: 60,
+        justifyContent: 'center',
+    },
+    input: {
+        fontSize: 17,
+        fontWeight: '500',
+        color: '#1C1C1E',
+    },
+    textAreaWrapper: {
+        paddingTop: 16,
+        paddingBottom: 16,
+        alignItems: 'flex-start',
+    },
+    textArea: {
+        minHeight: 80,
+        paddingTop: 0,
+    },
+    buttonContainer: {
+        flexDirection: 'row',
+        paddingHorizontal: 24,
+        marginTop: 16,
+        gap: 12,
+    },
+    deleteCircle: {
+        width: 64,
+        height: 64,
+        borderRadius: 32,
+        backgroundColor: '#FFEBEE',
+        justifyContent: 'center',
+        alignItems: 'center',
+    },
+    button: {
+        flex: 1,
+        height: 64,
+        borderRadius: 32,
+        flexDirection: 'row',
+        justifyContent: 'center',
+        alignItems: 'center',
+        gap: 8,
     },
     submitButton: {
         backgroundColor: '#E53935',
+        shadowColor: '#E53935',
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.3,
+        shadowRadius: 12,
+        elevation: 8,
     },
     submitButtonDisabled: {
         opacity: 0.6,
+        shadowOpacity: 0,
+        elevation: 0,
     },
     submitButtonText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#fff',
-        marginLeft: 6,
-    },
-    buttonIcon: {
-        marginRight: 4,
+        fontSize: 18,
+        fontWeight: '800',
+        color: '#FFFFFF',
+        letterSpacing: 0.5,
     },
 });

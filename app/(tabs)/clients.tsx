@@ -5,11 +5,13 @@ import React, { useCallback, useEffect, useState } from 'react';
 import {
     ActivityIndicator,
     FlatList,
+    Platform,
+    StatusBar,
     StyleSheet,
     Text,
     TextInput,
     TouchableOpacity,
-    View,
+    View
 } from 'react-native';
 import { getAllClients, searchClients } from '../../src/database/queries';
 import { showError } from '../../src/ui/toast.js';
@@ -25,15 +27,8 @@ export default function ClientsScreen() {
     const [showEditDrawer, setShowEditDrawer] = useState(false);
     const [selectedClient, setSelectedClient] = useState(null);
 
-    useEffect(() => {
-        loadClients();
-    }, []);
-
-    useFocusEffect(
-        useCallback(() => {
-            loadClients();
-        }, [])
-    );
+    useEffect(() => { loadClients(); }, []);
+    useFocusEffect(useCallback(() => { loadClients(); }, []));
 
     const loadClients = async () => {
         try {
@@ -42,7 +37,6 @@ export default function ClientsScreen() {
             setClients(data);
             setFilteredClients(data);
         } catch (error) {
-            console.error('Error loading clients:', error);
             showError('Failed to load clients');
         } finally {
             setLoading(false);
@@ -54,130 +48,99 @@ export default function ClientsScreen() {
         if (text.trim() === '') {
             setFilteredClients(clients);
         } else {
-            try {
-                const results = await searchClients(text);
-                setFilteredClients(results);
-            } catch (error) {
-                console.error('Error searching clients:', error);
-                showError('Failed to search clients');
-            }
+            const results = await searchClients(text);
+            setFilteredClients(results);
         }
     };
 
     const renderClientCard = ({ item }) => {
-        // Avatar initials
-        const initials = item.name
-            .split(" ")
-            .map((n) => n[0])
-            .join("")
-            .toUpperCase()
-            .slice(0, 2);
+        const initials = item.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2);
 
         return (
             <TouchableOpacity
-                style={styles.clientCard}
+                style={styles.card}
+                activeOpacity={0.6}
                 onPress={() => {
                     setSelectedClient(item);
                     setShowEditDrawer(true);
                 }}
             >
-                {/* Row 1: Avatar + Name + More */}
-                <View style={styles.row1}>
+                <View style={styles.cardTop}>
                     <View style={styles.avatar}>
                         <Text style={styles.avatarText}>{initials}</Text>
                     </View>
-
-                    <View style={styles.nameBlock}>
-                        <Text style={styles.clientName}>{item.name}</Text>
+                    <View style={styles.mainInfo}>
+                        <Text style={styles.nameText}>{item.name}</Text>
+                        <View style={styles.phoneContainer}>
+                            <Ionicons name="call" size={14} color="#E53935" />
+                            <Text style={styles.phoneText}>{item.phone}</Text>
+                        </View>
                     </View>
-
-                    <TouchableOpacity
-                        style={styles.moreBtn}
-                        onPress={() => {
-                            setSelectedClient(item);
-                            setShowEditDrawer(true);
-                        }}
-                    >
-                        <Ionicons name="ellipsis-vertical" size={20} color="#E53935" />
-                    </TouchableOpacity>
+                    <View style={styles.editBadge}>
+                        <Ionicons name="chevron-forward" size={18} color="#D1D1D6" />
+                    </View>
                 </View>
 
-                {/* Row 2: Phone + Email */}
-                <View style={styles.row2}>
-                    <Text style={styles.detailText}>📞 {item.phone}</Text>
-                    {item.email ? <Text style={styles.detailText}>📧 {item.email}</Text> : null}
-                </View>
+                {/* Separate Rows for long content */}
+                <View style={styles.detailsSection}>
+                    {item.email && (
+                        <View style={styles.detailRow}>
+                            <Ionicons name="mail-outline" size={16} color="#8E8E93" />
+                            <Text style={styles.detailText} numberOfLines={1}>{item.email}</Text>
+                        </View>
+                    )}
 
-                {/* Row 3: Address */}
-                {item.address ? (
-                    <View style={styles.row3}>
-                        <Text style={styles.detailText}>📍 {item.address}</Text>
-                    </View>
-                ) : null}
+                    {item.address && (
+                        <View style={[styles.detailRow, { marginTop: 8 }]}>
+                            <Ionicons name="location-outline" size={16} color="#8E8E93" />
+                            <Text style={styles.detailText} numberOfLines={2}>{item.address}</Text>
+                        </View>
+                    )}
+                </View>
             </TouchableOpacity>
         );
     };
 
-    if (loading) {
-        return (
-            <View style={styles.container}>
-                <ActivityIndicator size="large" color="#E53935" />
-            </View>
-        );
-    }
-
     return (
         <View style={styles.container}>
-            {/* Search Bar */}
-            <View style={styles.searchContainer}>
-                <Ionicons name="search" size={20} color="#999" style={styles.searchIcon} />
-                <TextInput
-                    style={styles.searchInput}
-                    placeholder="Search by name or phone..."
-                    placeholderTextColor="#999"
-                    value={searchTerm}
-                    onChangeText={handleSearch}
-                />
+            <StatusBar barStyle="dark-content" />
+
+            <View style={styles.header}>
+                <Text style={styles.title}>Directory</Text>
+                <View style={styles.searchBar}>
+                    <Ionicons name="search" size={20} color="#AEAEB2" />
+                    <TextInput
+                        style={styles.searchInput}
+                        placeholder="Search by name or phone..."
+                        placeholderTextColor="#C7C7CC"
+                        value={searchTerm}
+                        onChangeText={handleSearch}
+                    />
+                </View>
             </View>
 
-            {/* Clients List */}
-            {filteredClients.length === 0 ? (
-                <View style={styles.emptyState}>
-                    <Ionicons name="people-outline" size={60} color="#ccc" />
-                    <Text style={styles.emptyText}>No clients found</Text>
-                </View>
+            {loading ? (
+                <View style={styles.centered}><ActivityIndicator color="#E53935" /></View>
             ) : (
                 <FlatList
                     data={filteredClients}
                     renderItem={renderClientCard}
                     keyExtractor={(item) => item.id.toString()}
-                    contentContainerStyle={styles.listContent}
-                    scrollEnabled={true}
+                    contentContainerStyle={styles.list}
+                    showsVerticalScrollIndicator={false}
                 />
             )}
 
-            {/* Add Client Button */}
             <TouchableOpacity
                 style={styles.fab}
                 onPress={() => setShowAddDrawer(true)}
             >
                 <Ionicons name="add" size={30} color="#fff" />
+                <Text style={styles.fabText}>Add Client</Text>
             </TouchableOpacity>
 
-            {/* Add Client Drawer */}
-            <AddClientDrawer
-                visible={showAddDrawer}
-                onClose={() => setShowAddDrawer(false)}
-                onClientAdded={loadClients}
-            />
-
-            {/* Edit Client Drawer */}
-            <EditClientDrawer
-                visible={showEditDrawer}
-                onClose={() => setShowEditDrawer(false)}
-                client={selectedClient}
-                onClientUpdated={loadClients}
-            />
+            <AddClientDrawer visible={showAddDrawer} onClose={() => setShowAddDrawer(false)} onClientAdded={loadClients} />
+            <EditClientDrawer visible={showEditDrawer} onClose={() => setShowEditDrawer(false)} client={selectedClient} onClientUpdated={loadClients} />
         </View>
     );
 }
@@ -185,151 +148,140 @@ export default function ClientsScreen() {
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#f5f5f5',
+        backgroundColor: '#F2F2F7', // Pure light iOS system gray
     },
-    searchContainer: {
+    header: {
+        backgroundColor: '#FFF',
+        paddingTop: Platform.OS === 'ios' ? 60 : 40,
+        paddingHorizontal: 24,
+        paddingBottom: 24,
+        borderBottomLeftRadius: 32,
+        borderBottomRightRadius: 32,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.05,
+        shadowRadius: 10,
+        elevation: 2,
+    },
+    title: {
+        fontSize: 34,
+        fontWeight: '900',
+        color: '#1C1C1E',
+        letterSpacing: -1,
+        marginBottom: 20,
+    },
+    searchBar: {
         flexDirection: 'row',
         alignItems: 'center',
-        backgroundColor: '#fff',
-        marginHorizontal: 15,
-        marginTop: 15,
-        marginBottom: 15,
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-    },
-    searchIcon: {
-        marginRight: 10,
+        backgroundColor: '#F2F2F7',
+        borderRadius: 16,
+        paddingHorizontal: 16,
+        height: 52,
     },
     searchInput: {
         flex: 1,
-        paddingVertical: 12,
-        fontSize: 14,
-        color: '#333',
+        marginLeft: 12,
+        fontSize: 16,
+        fontWeight: '500',
+        color: '#1C1C1E',
     },
-    listContent: {
-        paddingHorizontal: 15,
-        paddingBottom: 100,
+    list: {
+        padding: 20,
+        paddingBottom: 120,
     },
-    /** ========== Compact Client Card Styles ========== */
-
-    clientCard: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 14,
-        marginBottom: 12,
-        borderLeftWidth: 4,
-        borderLeftColor: '#E53935',
+    card: {
+        backgroundColor: '#FFF',
+        borderRadius: 24,
+        padding: 20,
+        marginBottom: 16,
         shadowColor: '#000',
-        shadowOpacity: 0.08,
-        shadowRadius: 3,
-        shadowOffset: { width: 0, height: 1 },
-        elevation: 2,
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.04,
+        shadowRadius: 8,
+        elevation: 3,
     },
-
-    /* Row 1: Avatar + Name + More Button */
-    row1: {
+    cardTop: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 8,
     },
-
     avatar: {
-        width: 40,
-        height: 40,
-        borderRadius: 20,
-        backgroundColor: '#007AFF22',
+        width: 50,
+        height: 50,
+        borderRadius: 16,
+        backgroundColor: '#FFEBEE',
         justifyContent: 'center',
         alignItems: 'center',
-        marginRight: 12,
     },
-
     avatarText: {
-        fontSize: 16,
-        fontWeight: '700',
         color: '#E53935',
+        fontSize: 18,
+        fontWeight: '800',
     },
-
-    nameBlock: {
+    mainInfo: {
         flex: 1,
+        marginLeft: 16,
     },
-
-    clientName: {
-        fontSize: 15,
+    nameText: {
+        fontSize: 18,
         fontWeight: '700',
-        color: '#333',
+        color: '#1C1C1E',
+        marginBottom: 4,
     },
-
-    moreBtn: {
-        padding: 6,
-    },
-
-    /* Row 2: Phone + Email in one line */
-    row2: {
+    phoneContainer: {
         flexDirection: 'row',
-        justifyContent: 'space-between',
-        marginBottom: 6,
-    },
-
-    /* Row 3: Address */
-    row3: {
-        marginTop: 2,
-    },
-
-    detailText: {
-        fontSize: 12.5,
-        color: '#555',
-        flexShrink: 1,
-    },
-    clientHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
         alignItems: 'center',
-        marginBottom: 10,
     },
-    clientInfo: {
+    phoneText: {
+        fontSize: 14,
+        color: '#8E8E93',
+        fontWeight: '600',
+        marginLeft: 6,
+    },
+    detailsSection: {
+        marginTop: 16,
+        paddingTop: 16,
+        borderTopWidth: 1,
+        borderTopColor: '#F2F2F7',
+    },
+    detailRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+    },
+    detailText: {
         flex: 1,
+        fontSize: 14,
+        color: '#636366',
+        marginLeft: 10,
+        fontWeight: '500',
     },
-    clientPhone: {
-        fontSize: 13,
-        color: '#666',
-        marginTop: 4,
-    },
-    clientEmail: {
-        fontSize: 12,
-        color: '#999',
-        marginTop: 4,
-    },
-    clientAddress: {
-        fontSize: 12,
-        color: '#999',
-        marginTop: 2,
-    },
-    emptyState: {
-        flex: 1,
+    editBadge: {
+        width: 32,
+        height: 32,
+        borderRadius: 16,
         justifyContent: 'center',
         alignItems: 'center',
-    },
-    emptyText: {
-        fontSize: 16,
-        color: '#999',
-        marginTop: 10,
     },
     fab: {
         position: 'absolute',
         bottom: 30,
         right: 20,
-        width: 60,
+        backgroundColor: '#E53935',
+        paddingHorizontal: 24,
         height: 60,
         borderRadius: 30,
-        backgroundColor: '#E53935',
-        justifyContent: 'center',
+        flexDirection: 'row',
         alignItems: 'center',
-        shadowColor: '#000',
-        shadowOffset: { width: 0, height: 3 },
+        shadowColor: '#E53935',
+        shadowOffset: { width: 0, height: 6 },
         shadowOpacity: 0.3,
-        shadowRadius: 5,
-        elevation: 8,
+        shadowRadius: 10,
+        elevation: 6,
     },
+    fabText: {
+        color: '#FFF',
+        fontSize: 16,
+        fontWeight: '800',
+        marginLeft: 8,
+    },
+    centered: { flex: 1, justifyContent: 'center', alignItems: 'center' }
 });
