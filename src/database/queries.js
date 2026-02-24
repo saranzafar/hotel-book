@@ -1,6 +1,25 @@
 // src/database/queries.js
 import { getDB } from './db';
 
+const getTodayLocalDateString = () => {
+    const now = new Date();
+    return new Date(now.getTime() - now.getTimezoneOffset() * 60000)
+        .toISOString()
+        .split('T')[0];
+};
+
+// Auto-expire subscriptions whose end date has passed.
+const syncExpiredSubscriptions = async () => {
+    const db = getDB();
+    await db.runAsync(
+        `UPDATE mess_subscriptions
+         SET isActive = 0,
+             lastModified = CURRENT_TIMESTAMP
+         WHERE isActive = 1
+           AND date(endDate) <= date('now', 'localtime')`
+    );
+};
+
 // ==================== CLIENTS QUERIES ====================
 
 // Add new client
@@ -106,11 +125,23 @@ export const addSubscription = async (
 ) => {
     try {
         const db = getDB();
+        const today = getTodayLocalDateString();
+        const safeIsActive = endDate <= today ? 0 : isActive;
         const result = await db.runAsync(
             `INSERT INTO mess_subscriptions 
        (clientId, startDate, endDate, totalDays, planType, totalAmount, amountPaid, isActive, notes) 
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-            [clientId, startDate, endDate, totalDays, planType, totalAmount, amountPaid, isActive, notes]
+            [
+                clientId,
+                startDate,
+                endDate,
+                totalDays,
+                planType,
+                totalAmount,
+                amountPaid,
+                safeIsActive,
+                notes,
+            ]
         );
         return result.lastInsertRowId;
     } catch (error) {
@@ -122,6 +153,7 @@ export const addSubscription = async (
 // Get all subscriptions with client names
 export const getAllSubscriptions = async () => {
     try {
+        await syncExpiredSubscriptions();
         const db = getDB();
         const result = await db.getAllAsync(`
       SELECT ms.*, c.name as clientName, c.phone 
@@ -139,6 +171,7 @@ export const getAllSubscriptions = async () => {
 // Get active subscriptions only
 export const getActiveSubscriptions = async () => {
     try {
+        await syncExpiredSubscriptions();
         const db = getDB();
         const result = await db.getAllAsync(`
       SELECT ms.*, c.name as clientName, c.phone 
@@ -157,6 +190,7 @@ export const getActiveSubscriptions = async () => {
 // Search subscriptions by client name
 export const searchSubscriptions = async (searchTerm) => {
     try {
+        await syncExpiredSubscriptions();
         const db = getDB();
         const result = await db.getAllAsync(
             `SELECT ms.*, c.name as clientName, c.phone 
@@ -176,6 +210,7 @@ export const searchSubscriptions = async (searchTerm) => {
 // Get subscription by ID
 export const getSubscriptionById = async (subscriptionId) => {
     try {
+        await syncExpiredSubscriptions();
         const db = getDB();
         const result = await db.getFirstAsync(
             `SELECT ms.*, c.name as clientName, c.phone 
@@ -194,6 +229,7 @@ export const getSubscriptionById = async (subscriptionId) => {
 // Get all subscriptions for a specific client
 export const getClientSubscriptions = async (clientId) => {
     try {
+        await syncExpiredSubscriptions();
         const db = getDB();
         const result = await db.getAllAsync(
             `SELECT * FROM mess_subscriptions 
@@ -222,12 +258,14 @@ export const updateSubscription = async (
 ) => {
     try {
         const db = getDB();
+        const today = getTodayLocalDateString();
+        const safeIsActive = endDate <= today ? 0 : isActive;
         await db.runAsync(
             `UPDATE mess_subscriptions 
        SET startDate = ?, endDate = ?, totalDays = ?, totalAmount = ?, 
            amountPaid = ?, isActive = ?, planType = ?, notes = ?, lastModified = CURRENT_TIMESTAMP
        WHERE id = ?`,
-            [startDate, endDate, totalDays, totalAmount, amountPaid, isActive, planType, notes, subscriptionId]
+            [startDate, endDate, totalDays, totalAmount, amountPaid, safeIsActive, planType, notes, subscriptionId]
         );
     } catch (error) {
         console.error('Error updating subscription:', error);
@@ -295,6 +333,7 @@ export const getSubscriptionPayments = async (subscriptionId) => {
 // Get total active subscriptions count
 export const getTotalActiveSubscriptions = async () => {
     try {
+        await syncExpiredSubscriptions();
         const db = getDB();
         const result = await db.getFirstAsync(
             `SELECT COUNT(*) as count FROM mess_subscriptions WHERE isActive = 1`
@@ -323,6 +362,7 @@ export const getTotalRevenue = async () => {
 // Get overdue subscriptions (active but with remaining balance)
 export const getOverduePayments = async () => {
     try {
+        await syncExpiredSubscriptions();
         const db = getDB();
         const result = await db.getAllAsync(`
       SELECT ms.*, c.name as clientName, c.phone,
@@ -342,13 +382,14 @@ export const getOverduePayments = async () => {
 // Get expiring soon (ending in next 7 days)
 export const getExpiringSoon = async () => {
     try {
+        await syncExpiredSubscriptions();
         const db = getDB();
         const result = await db.getAllAsync(`
       SELECT ms.*, c.name as clientName, c.phone
       FROM mess_subscriptions ms 
       JOIN clients c ON ms.clientId = c.id 
       WHERE ms.isActive = 1 
-      AND date(ms.endDate) BETWEEN date('now') AND date('now', '+7 days')
+      AND date(ms.endDate) BETWEEN date('now', 'localtime') AND date('now', 'localtime', '+7 days')
       ORDER BY ms.endDate ASC
     `);
         return result;
