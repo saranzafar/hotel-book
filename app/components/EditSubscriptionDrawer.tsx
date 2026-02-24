@@ -16,7 +16,7 @@ import {
     View,
 } from 'react-native';
 import { deleteSubscription, updateSubscription } from '../../src/database/queries';
-import { getErrorMessage, showError, showSuccess } from '../../src/ui/toast.js';
+import { showError, showSuccess } from '../../src/ui/toast.js';
 
 export default function EditSubscriptionDrawer({ visible, onClose, subscription, onSubscriptionUpdated }) {
     const [startDate, setStartDate] = useState(new Date());
@@ -41,7 +41,6 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
     const parseSqlDate = (dateValue) => {
         if (!dateValue) return new Date();
         const [year, month, day] = String(dateValue).split('-').map(Number);
-        if (!year || !month || !day) return new Date(dateValue);
         return new Date(year, month - 1, day);
     };
 
@@ -55,276 +54,161 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
     };
 
     const formatDate = (date) => {
+        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const formatDbDate = (date) => {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         return `${year}-${month}-${day}`;
     };
 
-    const handleStartDateChange = (event, selectedDate) => {
-        setShowStartDatePicker(false);
-        if (selectedDate) {
-            setStartDate(selectedDate);
-        }
-    };
-
-    const handleEndDateChange = (event, selectedDate) => {
-        setShowEndDatePicker(false);
-        if (selectedDate) {
-            setEndDate(selectedDate);
-        }
-    };
-
-    const validateInputs = () => {
-        if (!totalAmount.trim()) {
-            showError('Total amount is required');
-            return false;
-        }
-        if (isNaN(totalAmount) || parseFloat(totalAmount) <= 0) {
-            showError('Total amount must be a valid positive number');
-            return false;
-        }
-        if (amountPaid && (isNaN(amountPaid) || parseFloat(amountPaid) < 0)) {
-            showError('Amount paid must be a non-negative number');
-            return false;
-        }
-        if (amountPaid && parseFloat(amountPaid) > parseFloat(totalAmount)) {
-            showError('Amount paid cannot be greater than total amount');
-            return false;
-        }
-        if (normalizeDate(endDate) < normalizeDate(startDate)) {
-            showError('End date cannot be before start date');
-            return false;
-        }
-        return true;
-    };
-
     const handleUpdateSubscription = async () => {
-        if (!validateInputs()) return;
-
         try {
             setLoading(true);
-            const totalDays = calculateTotalDays();
-            const paid = parseFloat(amountPaid) || 0;
-            const total = parseFloat(totalAmount);
-
             await updateSubscription(
                 subscription.id,
-                formatDate(startDate),
-                formatDate(endDate),
-                totalDays,
-                total,
-                paid,
+                formatDbDate(startDate),
+                formatDbDate(endDate),
+                calculateTotalDays(),
+                parseFloat(totalAmount),
+                parseFloat(amountPaid) || 0,
                 isActive ? 1 : 0,
                 'custom',
                 ''
             );
-
-            showSuccess('Subscription updated successfully');
+            showSuccess('Plan updated');
             onClose();
             onSubscriptionUpdated();
         } catch (error) {
-            showError(getErrorMessage(error, 'Failed to update subscription'));
+            showError('Failed to update');
         } finally {
             setLoading(false);
         }
     };
 
     const handleDeleteSubscription = () => {
-        Alert.alert(
-            'Delete Subscription',
-            'Are you sure you want to delete this subscription? This action cannot be undone.',
-            [
-                { text: 'Cancel', onPress: () => { }, style: 'cancel' },
-                {
-                    text: 'Delete',
-                    onPress: async () => {
-                        try {
-                            setLoading(true);
-                            await deleteSubscription(subscription.id);
-                            showSuccess('Subscription deleted successfully');
-                            onClose();
-                            onSubscriptionUpdated();
-                        } catch (error) {
-                            showError(getErrorMessage(error, 'Failed to delete subscription'));
-                        } finally {
-                            setLoading(false);
-                        }
-                    },
-                    style: 'destructive',
-                },
-            ]
-        );
+        Alert.alert('Delete Plan', 'Are you sure you want to remove this subscription?', [
+            { text: 'Cancel', style: 'cancel' },
+            {
+                text: 'Delete',
+                style: 'destructive',
+                onPress: async () => {
+                    try {
+                        setLoading(true);
+                        await deleteSubscription(subscription.id);
+                        showSuccess('Subscription deleted');
+                        onClose();
+                        onSubscriptionUpdated();
+                    } catch (error) { showError('Failed to delete'); }
+                    finally { setLoading(false); }
+                }
+            }
+        ]);
     };
 
     if (!subscription) return null;
 
     return (
-        <Modal visible={visible} animationType="slide" transparent={true}>
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-                style={styles.container}
-            >
-                <View style={styles.overlay} />
+        <Modal visible={visible} animationType="fade" transparent statusBarTranslucent>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+                <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} disabled={loading} />
 
-                <View style={styles.drawerContent}>
-                    {/* Header */}
+                <View style={styles.floatingSheet}>
                     <View style={styles.header}>
-                        <Text style={styles.headerTitle}>Edit Subscription</Text>
-                        <TouchableOpacity onPress={onClose} disabled={loading}>
-                            <Ionicons name="close" size={28} color="#333" />
+                        <View style={styles.iconContainer}>
+                            <Ionicons name="create" size={24} color="#E53935" />
+                        </View>
+                        <View style={styles.headerTextContainer}>
+                            <Text style={styles.headerTitle}>Edit Plan</Text>
+                            <Text style={styles.subHeaderText}>{subscription.clientName}</Text>
+                        </View>
+                        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+                            <Ionicons name="close" size={24} color="#8E8E93" />
                         </TouchableOpacity>
                     </View>
 
-                    {/* Client Info (Display Only) */}
-                    <View style={styles.clientInfoBox}>
-                        <Ionicons name="person-circle" size={24} color="#E53935" />
-                        <View style={styles.clientInfoText}>
-                            <Text style={styles.clientName}>{subscription.clientName}</Text>
-                            <Text style={styles.clientPhone}>{subscription.phone}</Text>
-                        </View>
-                    </View>
-
-                    {/* Form Content */}
                     <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
-                        {/* Start Date */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Start Date *</Text>
-                            <TouchableOpacity
-                                style={styles.dateButton}
-                                onPress={() => setShowStartDatePicker(true)}
-                                disabled={loading}
-                            >
-                                <Ionicons name="calendar" size={18} color="#E53935" style={styles.dateIcon} />
-                                <Text style={styles.dateText}>{formatDate(startDate)}</Text>
-                            </TouchableOpacity>
-                            {showStartDatePicker && (
-                                <DateTimePicker
-                                    value={startDate}
-                                    mode="date"
-                                    display="default"
-                                    onChange={handleStartDateChange}
-                                />
-                            )}
-                        </View>
-
-                        {/* End Date */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>End Date *</Text>
-                            <TouchableOpacity
-                                style={styles.dateButton}
-                                onPress={() => setShowEndDatePicker(true)}
-                                disabled={loading}
-                            >
-                                <Ionicons name="calendar" size={18} color="#E53935" style={styles.dateIcon} />
-                                <Text style={styles.dateText}>{formatDate(endDate)}</Text>
-                            </TouchableOpacity>
-                            {showEndDatePicker && (
-                                <DateTimePicker
-                                    value={endDate}
-                                    mode="date"
-                                    display="default"
-                                    onChange={handleEndDateChange}
-                                />
-                            )}
-                        </View>
-
-                        {/* Total Days Display */}
-                        {normalizeDate(endDate) >= normalizeDate(startDate) && (
-                            <View style={styles.daysDisplay}>
-                                <Ionicons name="timer" size={18} color="#E53935" />
-                                <Text style={styles.daysText}>Total Days: {calculateTotalDays()}</Text>
+                        <View style={styles.row}>
+                            <View style={styles.col}>
+                                <Text style={styles.label}>START DATE</Text>
+                                <TouchableOpacity style={styles.inputWrapper} onPress={() => setShowStartDatePicker(true)}>
+                                    <Text style={styles.pickerValue}>{formatDate(startDate)}</Text>
+                                </TouchableOpacity>
                             </View>
-                        )}
-
-                        {/* Total Amount */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Total Amount (₹) *</Text>
-                            <View style={styles.inputWrapper}>
-                                <Ionicons name="cash" size={18} color="#999" style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Enter total amount"
-                                    placeholderTextColor="#ccc"
-                                    value={totalAmount}
-                                    onChangeText={setTotalAmount}
-                                    keyboardType="decimal-pad"
-                                    editable={!loading}
-                                />
+                            <View style={styles.col}>
+                                <Text style={styles.label}>END DATE</Text>
+                                <TouchableOpacity style={styles.inputWrapper} onPress={() => setShowEndDatePicker(true)}>
+                                    <Text style={styles.pickerValue}>{formatDate(endDate)}</Text>
+                                </TouchableOpacity>
                             </View>
                         </View>
 
-                        {/* Amount Paid */}
-                        <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Amount Paid (₹) *</Text>
-                            <View style={styles.inputWrapper}>
-                                <Ionicons name="checkmark-circle" size={18} color="#999" style={styles.inputIcon} />
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Enter amount paid"
-                                    placeholderTextColor="#ccc"
-                                    value={amountPaid}
-                                    onChangeText={setAmountPaid}
-                                    keyboardType="decimal-pad"
-                                    editable={!loading}
-                                />
+                        <View style={styles.row}>
+                            <View style={styles.col}>
+                                <Text style={styles.label}>TOTAL AMOUNT</Text>
+                                <View style={styles.inputWrapper}>
+                                    <TextInput
+                                        style={styles.input}
+                                        keyboardType="decimal-pad"
+                                        value={totalAmount}
+                                        onChangeText={setTotalAmount}
+                                    />
+                                </View>
+                            </View>
+                            <View style={styles.col}>
+                                <Text style={styles.label}>PAID</Text>
+                                <View style={styles.inputWrapper}>
+                                    <TextInput
+                                        style={styles.input}
+                                        keyboardType="decimal-pad"
+                                        value={amountPaid}
+                                        onChangeText={setAmountPaid}
+                                    />
+                                </View>
                             </View>
                         </View>
 
-                        {/* Remaining Amount Display */}
-                        {totalAmount && (
-                            <View style={styles.remainingDisplay}>
-                                <Text style={styles.remainingLabel}>Remaining Amount:</Text>
-                                <Text style={styles.remainingValue}>
-                                    ₹{((parseFloat(totalAmount) || 0) - (amountPaid ? (parseFloat(amountPaid) || 0) : 0)).toFixed(2)}
+                        <View style={styles.summaryCard}>
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Total Days</Text>
+                                <Text style={styles.summaryValue}>{calculateTotalDays()}</Text>
+                            </View>
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Balance Due</Text>
+                                <Text style={[styles.summaryValue, { color: '#E53935' }]}>
+                                    ₹{((parseFloat(totalAmount) || 0) - (parseFloat(amountPaid) || 0)).toFixed(2)}
                                 </Text>
                             </View>
-                        )}
+                        </View>
 
-                        {/* Active Toggle */}
-                        <View style={styles.toggleGroup}>
-                            <View style={styles.toggleLabel}>
-                                <Ionicons name="power" size={18} color={isActive ? '#E53935' : '#E74C3C'} />
-                                <Text style={styles.toggleText}>Active Status</Text>
+                        <View style={styles.statusRow}>
+                            <View style={styles.statusLabelGroup}>
+                                <View style={[styles.dot, { backgroundColor: isActive ? '#34C759' : '#8E8E93' }]} />
+                                <Text style={styles.statusText}>Active Subscription</Text>
                             </View>
                             <Switch
                                 value={isActive}
                                 onValueChange={setIsActive}
-                                disabled={loading}
-                                trackColor={{ false: '#e0e0e0', true: '#81C784' }}
-                                thumbColor={isActive ? '#E53935' : '#bbb'}
+                                trackColor={{ false: '#D1D1D6', true: '#FFEBEE' }}
+                                thumbColor={isActive ? '#E53935' : '#F2F2F7'}
                             />
                         </View>
+                        <View style={{ height: 20 }} />
                     </ScrollView>
 
-                    {/* Action Buttons */}
                     <View style={styles.buttonContainer}>
-                        <TouchableOpacity
-                            style={[styles.button, styles.deleteButton]}
-                            onPress={handleDeleteSubscription}
-                            disabled={loading}
-                        >
-                            <Ionicons name="trash" size={18} color="#fff" />
-                            <Text style={styles.deleteButtonText}>Delete</Text>
+                        <TouchableOpacity style={styles.deleteCircle} onPress={handleDeleteSubscription}>
+                            <Ionicons name="trash-outline" size={24} color="#E53935" />
                         </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.button, styles.cancelButton]}
-                            onPress={onClose}
-                            disabled={loading}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                            style={[styles.button, styles.submitButton, loading && styles.submitButtonDisabled]}
-                            onPress={handleUpdateSubscription}
-                            disabled={loading}
-                        >
-                            <Ionicons name="checkmark" size={18} color="#fff" style={styles.buttonIcon} />
-                            <Text style={styles.submitButtonText}>
-                                {loading ? 'Saving...' : 'Save'}
-                            </Text>
+                        <TouchableOpacity style={styles.submitButton} onPress={handleUpdateSubscription}>
+                            <Text style={styles.submitButtonText}>{loading ? 'Saving...' : 'Save Changes'}</Text>
                         </TouchableOpacity>
                     </View>
+
+                    {showStartDatePicker && <DateTimePicker value={startDate} mode="date" onChange={(e, d) => { setShowStartDatePicker(false); if (d) setStartDate(d); }} />}
+                    {showEndDatePicker && <DateTimePicker value={endDate} mode="date" onChange={(e, d) => { setShowEndDatePicker(false); if (d) setEndDate(d); }} />}
                 </View>
             </KeyboardAvoidingView>
         </Modal>
@@ -332,202 +216,39 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        justifyContent: 'flex-end',
+    container: { flex: 1, justifyContent: 'flex-end' },
+    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+    floatingSheet: {
+        backgroundColor: '#FFF', borderRadius: 32, marginHorizontal: 16, marginBottom: 30,
+        paddingTop: 24, paddingBottom: 24, maxHeight: '85%', elevation: 15,
     },
-    overlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-    },
-    drawerContent: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 20,
-        borderTopRightRadius: 20,
-        paddingBottom: 20,
-        maxHeight: '90%',
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 15,
-        borderBottomWidth: 1,
-        borderBottomColor: '#e0e0e0',
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
-    },
-    clientInfoBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 12,
-        backgroundColor: '#f9f9f9',
-    },
-    clientInfoText: {
-        marginLeft: 12,
-    },
-    clientName: {
-        fontSize: 15,
-        fontWeight: '600',
-        color: '#333',
-    },
-    clientPhone: {
-        fontSize: 12,
-        color: '#999',
-        marginTop: 2,
-    },
-    formContainer: {
-        paddingHorizontal: 20,
-        paddingTop: 15,
-        maxHeight: 350,
-    },
-    inputGroup: {
-        marginBottom: 16,
-    },
-    label: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 6,
-    },
-    inputWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f5f5f5',
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-        paddingHorizontal: 12,
-    },
-    inputIcon: {
-        marginRight: 8,
-    },
-    input: {
-        flex: 1,
-        paddingVertical: 12,
-        fontSize: 14,
-        color: '#333',
-    },
-    dateButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f5f5f5',
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-    },
-    dateIcon: {
-        marginRight: 8,
-    },
-    dateText: {
-        flex: 1,
-        fontSize: 14,
-        color: '#333',
-    },
-    daysDisplay: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#E3F2FD',
-        borderRadius: 10,
-        padding: 12,
-        marginBottom: 16,
-    },
-    daysText: {
-        fontSize: 14,
-        color: '#E53935',
-        fontWeight: '600',
-        marginLeft: 8,
-    },
-    remainingDisplay: {
-        backgroundColor: '#E8F5E9',
-        borderRadius: 10,
-        padding: 12,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    remainingLabel: {
-        fontSize: 13,
-        color: '#E53935',
-        fontWeight: '600',
-    },
-    remainingValue: {
-        fontSize: 16,
-        color: '#E53935',
-        fontWeight: 'bold',
-    },
-    toggleGroup: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        backgroundColor: '#f5f5f5',
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-        marginBottom: 16,
-    },
-    toggleLabel: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-    },
-    toggleText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-    },
-    buttonContainer: {
-        flexDirection: 'row',
-        gap: 8,
-        paddingHorizontal: 20,
-        marginTop: 20,
-    },
-    button: {
-        flex: 1,
-        paddingVertical: 12,
-        borderRadius: 10,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    deleteButton: {
-        backgroundColor: '#E74C3C',
-    },
-    deleteButtonText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#fff',
-        marginLeft: 6,
-    },
-    cancelButton: {
-        backgroundColor: '#e0e0e0',
-    },
-    cancelButtonText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#333',
-    },
+    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, marginBottom: 20 },
+    iconContainer: { width: 48, height: 48, borderRadius: 20, backgroundColor: '#FFEBEE', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+    headerTextContainer: { flex: 1 },
+    headerTitle: { fontSize: 20, fontWeight: '900', color: '#1C1C1E' },
+    subHeaderText: { fontSize: 14, color: '#8E8E93', fontWeight: '600' },
+    closeButton: { backgroundColor: '#F2F2F7', width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+    formContainer: { paddingHorizontal: 24 },
+    label: { fontSize: 11, fontWeight: '800', color: '#8E8E93', marginBottom: 8, marginLeft: 4, letterSpacing: 1 },
+    row: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+    col: { flex: 1 },
+    inputWrapper: { backgroundColor: '#F5F5F7', borderRadius: 20, paddingHorizontal: 20, minHeight: 60, justifyContent: 'center' },
+    pickerValue: { fontSize: 16, fontWeight: '600', color: '#1C1C1E' },
+    input: { fontSize: 17, fontWeight: '600', color: '#1C1C1E' },
+    summaryCard: { backgroundColor: '#F5F5F7', borderRadius: 24, padding: 20, borderLeftWidth: 5, borderLeftColor: '#E53935', marginBottom: 20 },
+    summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+    summaryLabel: { fontSize: 13, fontWeight: '700', color: '#8E8E93' },
+    summaryValue: { fontSize: 15, fontWeight: '800', color: '#1C1C1E' },
+    statusRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 4 },
+    statusLabelGroup: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+    dot: { width: 8, height: 8, borderRadius: 4 },
+    statusText: { fontSize: 15, fontWeight: '700', color: '#1C1C1E' },
+    buttonContainer: { flexDirection: 'row', paddingHorizontal: 24, gap: 12, marginTop: 10 },
+    deleteCircle: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#FFEBEE', justifyContent: 'center', alignItems: 'center' },
     submitButton: {
-        backgroundColor: '#E53935',
+        flex: 1, height: 64, borderRadius: 32, backgroundColor: '#E53935',
+        justifyContent: 'center', alignItems: 'center', shadowColor: '#E53935',
+        shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8
     },
-    submitButtonDisabled: {
-        opacity: 0.6,
-    },
-    submitButtonText: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#fff',
-        marginLeft: 6,
-    },
-    buttonIcon: {
-        marginRight: 4,
-    },
+    submitButtonText: { fontSize: 18, fontWeight: '800', color: '#FFF' }
 });

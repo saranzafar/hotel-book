@@ -3,7 +3,6 @@ import { Ionicons } from '@expo/vector-icons';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
 import {
-    ActivityIndicator,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -17,11 +16,7 @@ import {
 import { addSubscription, getAllClients } from '../../src/database/queries';
 import { getErrorMessage, showError, showSuccess } from '../../src/ui/toast.js';
 
-export default function AddSubscriptionDrawer({
-    visible,
-    onClose,
-    onSubscriptionAdded,
-}) {
+export default function AddSubscriptionDrawer({ visible, onClose, onSubscriptionAdded }) {
     const [clients, setClients] = useState([]);
     const [clientSearch, setClientSearch] = useState('');
     const [selectedClient, setSelectedClient] = useState(null);
@@ -64,6 +59,10 @@ export default function AddSubscriptionDrawer({
     };
 
     const formatDate = (date) => {
+        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+
+    const formatDbDate = (date) => {
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
@@ -81,29 +80,15 @@ export default function AddSubscriptionDrawer({
     };
 
     const validateInputs = () => {
-        if (!selectedClient) {
-            showError('Please select a client');
-            return false;
-        }
-        if (!totalAmount.trim()) {
-            showError('Total amount is required');
-            return false;
-        }
-        if (isNaN(totalAmount) || parseFloat(totalAmount) <= 0) {
-            showError('Enter a valid positive total amount');
-            return false;
-        }
-        if (amountPaid && (isNaN(amountPaid) || parseFloat(amountPaid) < 0)) {
-            showError('Amount paid must be a non-negative number');
-            return false;
+        if (!selectedClient) { showError('Please select a client'); return false; }
+        if (!totalAmount.trim() || isNaN(totalAmount) || parseFloat(totalAmount) <= 0) {
+            showError('Enter a valid total amount'); return false;
         }
         if (amountPaid && parseFloat(amountPaid) > parseFloat(totalAmount)) {
-            showError('Amount paid cannot be greater than total amount');
-            return false;
+            showError('Amount paid cannot exceed total'); return false;
         }
         if (normalizeDate(endDate) < normalizeDate(startDate)) {
-            showError('End date cannot be before start date');
-            return false;
+            showError('End date is before start date'); return false;
         }
         return true;
     };
@@ -112,25 +97,21 @@ export default function AddSubscriptionDrawer({
         if (!validateInputs()) return;
         try {
             setLoading(true);
-
             await addSubscription(
                 selectedClient.id,
-                formatDate(startDate),
-                formatDate(endDate),
+                formatDbDate(startDate),
+                formatDbDate(endDate),
                 calculateTotalDays(),
                 parseFloat(totalAmount),
                 amountPaid ? parseFloat(amountPaid) : 0,
-                'custom',
-                1,
-                ''
+                'custom', 1, ''
             );
-
-            showSuccess('Subscription added');
+            showSuccess('Subscription activated');
             resetForm();
             onClose();
             onSubscriptionAdded();
         } catch (error) {
-            showError(getErrorMessage(error, 'Could not add subscription'));
+            showError(getErrorMessage(error, 'Failed to add subscription'));
         } finally {
             setLoading(false);
         }
@@ -146,190 +127,106 @@ export default function AddSubscriptionDrawer({
         setShowClientPicker(false);
     };
 
-    const filteredClients = clients.filter(
-        (c) =>
-            c.name.toLowerCase().includes(clientSearch.toLowerCase()) ||
-            c.phone.includes(clientSearch)
+    const filteredClients = clients.filter(c =>
+        c.name.toLowerCase().includes(clientSearch.toLowerCase()) || c.phone.includes(clientSearch)
     );
 
     return (
-        <Modal visible={visible} animationType="slide" transparent>
-            <KeyboardAvoidingView
-                behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-                style={styles.container}
-            >
-                <View style={styles.overlay} />
+        <Modal visible={visible} animationType="fade" transparent statusBarTranslucent>
+            <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
+                <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose} disabled={loading} />
 
-                <View style={styles.drawerContent}>
-                    {/* HEADER */}
+                <View style={styles.floatingSheet}>
+                    {/* Header */}
                     <View style={styles.header}>
-                        <Text style={styles.headerTitle}>Add Subscription</Text>
-                        <TouchableOpacity onPress={onClose} disabled={loading}>
-                            <Ionicons name="close" size={28} color="#333" />
+                        <View style={styles.iconContainer}>
+                            <Ionicons name="calendar" size={24} color="#E53935" />
+                        </View>
+                        <View style={styles.headerTextContainer}>
+                            <Text style={styles.headerTitle}>New Subscription</Text>
+                        </View>
+                        <TouchableOpacity onPress={onClose} disabled={loading} style={styles.closeButton}>
+                            <Ionicons name="close" size={24} color="#8E8E93" />
                         </TouchableOpacity>
                     </View>
 
-                    {/* FORM */}
-                    <ScrollView
-                        style={styles.formContainer}
-                        showsVerticalScrollIndicator={false}
-                    >
-                        {/* CLIENT SELECTOR */}
+                    <ScrollView style={styles.formContainer} showsVerticalScrollIndicator={false}>
+                        {/* Client Picker */}
                         <View style={styles.inputGroup}>
-                            <Text style={styles.label}>Select Client *</Text>
+                            <Text style={styles.label}>MEMBER <Text style={styles.required}>*</Text></Text>
                             <TouchableOpacity
-                                style={[styles.inputWrapper, styles.clientSelector]}
+                                style={[styles.inputWrapper, styles.pickerTrigger, showClientPicker && styles.activePicker]}
                                 onPress={() => setShowClientPicker(!showClientPicker)}
                             >
-                                <Ionicons name="person" size={18} color="#999" />
-                                <Text
-                                    style={[
-                                        styles.clientSelectorText,
-                                        selectedClient && styles.clientSelectorTextSelected,
-                                    ]}
-                                >
-                                    {selectedClient ? selectedClient.name : 'Select a client'}
+                                <Text style={[styles.pickerValue, !selectedClient && styles.placeholder]}>
+                                    {selectedClient ? selectedClient.name : 'Choose a member...'}
                                 </Text>
-                                <Ionicons name="chevron-down" size={18} color="#999" />
+                                <Ionicons name={showClientPicker ? "chevron-up" : "chevron-down"} size={20} color="#8E8E93" />
                             </TouchableOpacity>
 
-                            {/* DROPDOWN */}
                             {showClientPicker && (
-                                <View style={styles.clientDropdown}>
-                                    {/* SEARCH BOX */}
-                                    <View style={styles.searchBox}>
-                                        <Ionicons name="search" size={18} color="#888" />
+                                <View style={styles.dropdownContainer}>
+                                    <View style={styles.miniSearch}>
+                                        <Ionicons name="search" size={16} color="#8E8E93" />
                                         <TextInput
-                                            placeholder="Search clients..."
-                                            placeholderTextColor="#aaa"
+                                            placeholder="Search..."
                                             value={clientSearch}
                                             onChangeText={setClientSearch}
-                                            style={styles.searchInput}
+                                            style={styles.miniSearchInput}
                                         />
                                     </View>
-
-                                    {/* LIST */}
-                                    {loadingClients ? (
-                                        <ActivityIndicator size="small" color="#E53935" />
-                                    ) : (
-                                        <ScrollView style={{ maxHeight: 220 }}>
-                                            {filteredClients.length === 0 ? (
-                                                <Text style={{ textAlign: 'center', paddingVertical: 10, color: '#888' }}>
-                                                    No matching clients
-                                                </Text>
-                                            ) : (
-                                                filteredClients.map((item) => (
-                                                    <TouchableOpacity
-                                                        key={item.id}
-                                                        style={styles.clientOption}
-                                                        onPress={() => {
-                                                            setSelectedClient(item);
-                                                            setShowClientPicker(false);
-                                                        }}
-                                                    >
-                                                        <Text style={styles.clientOptionName}>{item.name}</Text>
-                                                        <Text style={styles.clientOptionPhone}>{item.phone}</Text>
-                                                    </TouchableOpacity>
-                                                ))
-                                            )}
-                                        </ScrollView>
-                                    )}
+                                    <ScrollView style={styles.dropdownList} nestedScrollEnabled>
+                                        {filteredClients.map(client => (
+                                            <TouchableOpacity
+                                                key={client.id}
+                                                style={styles.clientItem}
+                                                onPress={() => { setSelectedClient(client); setShowClientPicker(false); }}
+                                            >
+                                                <Text style={styles.clientItemName}>{client.name}</Text>
+                                                <Text style={styles.clientItemPhone}>{client.phone}</Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </ScrollView>
                                 </View>
                             )}
                         </View>
 
-                        {/* ROW 1 — START & END DATE */}
+                        {/* Date Selection */}
                         <View style={styles.row}>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Start Date *</Text>
-                                <TouchableOpacity
-                                    style={styles.dateButton}
-                                    onPress={() => setShowStartDatePicker(true)}
-                                >
-                                    <Ionicons
-                                        name="calendar"
-                                        size={18}
-                                        color="#E53935"
-                                        style={{ marginRight: 8 }}
-                                    />
-                                    <Text style={styles.dateText}>{formatDate(startDate)}</Text>
+                                <Text style={styles.label}>START DATE</Text>
+                                <TouchableOpacity style={styles.inputWrapper} onPress={() => setShowStartDatePicker(true)}>
+                                    <Text style={styles.pickerValue}>{formatDate(startDate)}</Text>
                                 </TouchableOpacity>
-                                {showStartDatePicker && (
-                                    <DateTimePicker
-                                        value={startDate}
-                                        mode="date"
-                                        onChange={handleStartDateChange}
-                                    />
-                                )}
                             </View>
-
                             <View style={styles.col}>
-                                <Text style={styles.label}>End Date *</Text>
-                                <TouchableOpacity
-                                    style={styles.dateButton}
-                                    onPress={() => setShowEndDatePicker(true)}
-                                >
-                                    <Ionicons
-                                        name="calendar"
-                                        size={18}
-                                        color="#E53935"
-                                        style={{ marginRight: 8 }}
-                                    />
-                                    <Text style={styles.dateText}>{formatDate(endDate)}</Text>
+                                <Text style={styles.label}>END DATE</Text>
+                                <TouchableOpacity style={styles.inputWrapper} onPress={() => setShowEndDatePicker(true)}>
+                                    <Text style={styles.pickerValue}>{formatDate(endDate)}</Text>
                                 </TouchableOpacity>
-                                {showEndDatePicker && (
-                                    <DateTimePicker
-                                        value={endDate}
-                                        mode="date"
-                                        onChange={handleEndDateChange}
-                                    />
-                                )}
                             </View>
                         </View>
 
-                        {/* TOTAL DAYS */}
-                        {normalizeDate(endDate) >= normalizeDate(startDate) && (
-                            <View style={styles.daysDisplay}>
-                                <Ionicons name="timer" size={18} color="#E53935" />
-                                <Text style={styles.daysText}>
-                                    Total Days: {calculateTotalDays()}
-                                </Text>
-                            </View>
-                        )}
-
-                        {/* ROW 2 — TOTAL AMOUNT & PAID */}
+                        {/* Amount Selection */}
                         <View style={styles.row}>
                             <View style={styles.col}>
-                                <Text style={styles.label}>Total Amount (₹) *</Text>
+                                <Text style={styles.label}>TOTAL AMOUNT</Text>
                                 <View style={styles.inputWrapper}>
-                                    <Ionicons
-                                        name="cash"
-                                        size={18}
-                                        color="#999"
-                                        style={styles.inputIcon}
-                                    />
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="Total"
+                                        placeholder="₹ 0.00"
                                         keyboardType="decimal-pad"
                                         value={totalAmount}
                                         onChangeText={setTotalAmount}
                                     />
                                 </View>
                             </View>
-
                             <View style={styles.col}>
-                                <Text style={styles.label}>Amount Paid (₹)</Text>
+                                <Text style={styles.label}>PAID</Text>
                                 <View style={styles.inputWrapper}>
-                                    <Ionicons
-                                        name="checkmark-circle"
-                                        size={18}
-                                        color="#999"
-                                        style={styles.inputIcon}
-                                    />
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="Paid"
+                                        placeholder="₹ 0.00"
                                         keyboardType="decimal-pad"
                                         value={amountPaid}
                                         onChangeText={setAmountPaid}
@@ -338,249 +235,84 @@ export default function AddSubscriptionDrawer({
                             </View>
                         </View>
 
-                        {/* REMAINING AMOUNT */}
-                        {totalAmount !== '' && (
-                            <View style={styles.remainingDisplay}>
-                                <Text style={styles.remainingLabel}>Remaining:</Text>
-                                <Text style={styles.remainingValue}>
-                                    ₹
-                                    {(
-                                        (parseFloat(totalAmount) || 0) -
-                                        (amountPaid ? (parseFloat(amountPaid) || 0) : 0)
-                                    ).toFixed(2)}
+                        {/* Summary Card */}
+                        <View style={styles.summaryCard}>
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Duration</Text>
+                                <Text style={styles.summaryValue}>{calculateTotalDays()} Days</Text>
+                            </View>
+                            <View style={styles.summaryRow}>
+                                <Text style={styles.summaryLabel}>Balance Due</Text>
+                                <Text style={[styles.summaryValue, { color: '#E53935' }]}>
+                                    ₹{((parseFloat(totalAmount) || 0) - (parseFloat(amountPaid) || 0)).toFixed(2)}
                                 </Text>
                             </View>
-                        )}
+                        </View>
+
+                        <View style={{ height: 20 }} />
                     </ScrollView>
 
-                    {/* BUTTONS */}
                     <View style={styles.buttonContainer}>
                         <TouchableOpacity
-                            style={[styles.button, styles.cancelButton]}
-                            onPress={onClose}
-                            disabled={loading}
-                        >
-                            <Text style={styles.cancelButtonText}>Cancel</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                            style={[
-                                styles.button,
-                                styles.submitButton,
-                                loading && styles.submitButtonDisabled,
-                            ]}
+                            style={[styles.submitButton, loading && styles.disabledButton]}
                             onPress={handleAddSubscription}
                             disabled={loading}
                         >
-                            <Ionicons
-                                name="checkmark"
-                                size={20}
-                                color="#fff"
-                                style={styles.buttonIcon}
-                            />
-                            <Text style={styles.submitButtonText}>
-                                {loading ? 'Adding...' : 'Add'}
-                            </Text>
+                            <Text style={styles.submitButtonText}>{loading ? 'Activating...' : 'Activate Subscription'}</Text>
+                            {!loading && <Ionicons name="flash" size={20} color="#fff" />}
                         </TouchableOpacity>
                     </View>
+
+                    {showStartDatePicker && <DateTimePicker value={startDate} mode="date" onChange={handleStartDateChange} />}
+                    {showEndDatePicker && <DateTimePicker value={endDate} mode="date" onChange={handleEndDateChange} />}
                 </View>
             </KeyboardAvoidingView>
         </Modal>
     );
 }
 
-/* ============================================================
-   ALL STYLES
-   ============================================================ */
-
 const styles = StyleSheet.create({
     container: { flex: 1, justifyContent: 'flex-end' },
-
-    overlay: {
-        ...StyleSheet.absoluteFillObject,
-        backgroundColor: 'rgba(0,0,0,0.45)',
+    overlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
+    floatingSheet: {
+        backgroundColor: '#FFF', borderRadius: 32, marginHorizontal: 16, marginBottom: 30,
+        paddingTop: 24, paddingBottom: 24, maxHeight: '85%', shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.1, shadowRadius: 20, elevation: 15,
     },
-
-    drawerContent: {
-        backgroundColor: '#fff',
-        borderTopLeftRadius: 22,
-        borderTopRightRadius: 22,
-        paddingBottom: 20,
-        maxHeight: '90%',
+    header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 24, marginBottom: 20 },
+    iconContainer: { width: 48, height: 48, borderRadius: 20, backgroundColor: '#FFEBEE', justifyContent: 'center', alignItems: 'center', marginRight: 16 },
+    headerTextContainer: { flex: 1 },
+    headerTitle: { fontSize: 22, fontWeight: '900', color: '#1C1C1E', letterSpacing: -0.5 },
+    closeButton: { backgroundColor: '#F2F2F7', width: 36, height: 36, borderRadius: 18, justifyContent: 'center', alignItems: 'center' },
+    formContainer: { paddingHorizontal: 24 },
+    label: { fontSize: 11, fontWeight: '800', color: '#8E8E93', marginBottom: 8, marginLeft: 4, letterSpacing: 1.2 },
+    required: { color: '#E53935' },
+    row: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+    col: { flex: 1 },
+    inputWrapper: { backgroundColor: '#F5F5F7', borderRadius: 20, paddingHorizontal: 20, minHeight: 60, justifyContent: 'center' },
+    pickerTrigger: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+    activePicker: { borderBottomLeftRadius: 0, borderBottomRightRadius: 0, backgroundColor: '#EFEFF4' },
+    pickerValue: { fontSize: 16, fontWeight: '600', color: '#1C1C1E' },
+    placeholder: { color: '#A1A1AA', fontWeight: '500' },
+    input: { fontSize: 17, fontWeight: '600', color: '#1C1C1E' },
+    inputGroup: { marginBottom: 20 },
+    dropdownContainer: { backgroundColor: '#F5F5F7', borderBottomLeftRadius: 20, borderBottomRightRadius: 20, padding: 12, borderTopWidth: 1, borderTopColor: '#E5E5EA' },
+    miniSearch: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderRadius: 12, paddingHorizontal: 12, height: 40, marginBottom: 8 },
+    miniSearchInput: { flex: 1, marginLeft: 8, fontSize: 14, color: '#1C1C1E' },
+    dropdownList: { maxHeight: 150 },
+    clientItem: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E5E5EA' },
+    clientItemName: { fontSize: 15, fontWeight: '700', color: '#1C1C1E' },
+    clientItemPhone: { fontSize: 12, color: '#8E8E93', marginTop: 2 },
+    summaryCard: { backgroundColor: '#F5F5F7', borderRadius: 24, padding: 20, marginTop: 10, borderLeftWidth: 5, borderLeftColor: '#E53935' },
+    summaryRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+    summaryLabel: { fontSize: 13, fontWeight: '700', color: '#8E8E93' },
+    summaryValue: { fontSize: 15, fontWeight: '800', color: '#1C1C1E' },
+    buttonContainer: { paddingHorizontal: 24, marginTop: 10 },
+    submitButton: {
+        height: 64, borderRadius: 32, backgroundColor: '#E53935', flexDirection: 'row',
+        justifyContent: 'center', alignItems: 'center', gap: 10, shadowColor: '#E53935',
+        shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 12, elevation: 8
     },
-
-    header: {
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        borderBottomWidth: 1,
-        borderColor: '#eee',
-    },
-    headerTitle: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: '#333',
-    },
-
-    formContainer: { paddingHorizontal: 20, paddingTop: 12 },
-
-    label: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#444',
-        marginBottom: 6,
-    },
-
-    /* Rows & Column Layout */
-    row: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        gap: 14,
-        marginBottom: 16,
-    },
-    col: {
-        flex: 1,
-    },
-
-    /* Inputs */
-    inputGroup: { marginBottom: 16 },
-
-    inputWrapper: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f7f7f7',
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-        paddingHorizontal: 12,
-    },
-    inputIcon: { marginRight: 8 },
-    input: {
-        flex: 1,
-        paddingVertical: 10,
-        fontSize: 14,
-        color: '#333',
-    },
-
-    /* Client Selector */
-    clientSelector: { justifyContent: 'space-between' },
-    clientSelectorText: {
-        flex: 1,
-        fontSize: 14,
-        marginLeft: 8,
-        color: '#aaa',
-    },
-    clientSelectorTextSelected: { color: '#333' },
-
-    clientDropdown: {
-        backgroundColor: '#f9f9f9',
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#ddd',
-        marginTop: 10,
-        padding: 12,
-    },
-
-    searchBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#eee',
-        paddingHorizontal: 10,
-        paddingVertical: 8,
-        borderRadius: 8,
-        marginBottom: 8,
-    },
-    searchInput: {
-        flex: 1,
-        marginLeft: 8,
-        fontSize: 14,
-        color: '#333',
-    },
-
-    clientOption: {
-        paddingVertical: 10,
-        borderBottomWidth: 1,
-        borderBottomColor: '#f0f0f0',
-    },
-    clientOptionName: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#333',
-    },
-    clientOptionPhone: {
-        fontSize: 12,
-        color: '#888',
-        marginTop: 2,
-    },
-
-    /* Dates */
-    dateButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 12,
-        paddingHorizontal: 12,
-        backgroundColor: '#f7f7f7',
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-        borderRadius: 10,
-    },
-    dateText: { fontSize: 14, color: '#333' },
-
-    daysDisplay: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#E3F2FD',
-        padding: 12,
-        borderRadius: 10,
-        marginBottom: 16,
-    },
-    daysText: { marginLeft: 8, color: '#E53935', fontWeight: '600' },
-
-    /* Remaining Amount */
-    remainingDisplay: {
-        backgroundColor: '#E8F5E9',
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        padding: 12,
-        borderRadius: 10,
-        marginBottom: 16,
-    },
-    remainingLabel: {
-        fontSize: 13,
-        fontWeight: '600',
-        color: '#E53935',
-    },
-    remainingValue: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: '#E53935',
-    },
-
-    /* Buttons */
-    buttonContainer: {
-        flexDirection: 'row',
-        gap: 10,
-        paddingHorizontal: 20,
-        marginTop: 10,
-    },
-    button: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 10,
-        flexDirection: 'row',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    cancelButton: { backgroundColor: '#e0e0e0' },
-    cancelButtonText: { fontWeight: '600', color: '#444' },
-
-    submitButton: { backgroundColor: '#E53935' },
-    submitButtonDisabled: { opacity: 0.6 },
-    submitButtonText: {
-        color: '#fff',
-        fontWeight: '600',
-        marginLeft: 4,
-    },
-    buttonIcon: { marginRight: 4 },
+    disabledButton: { opacity: 0.6 },
+    submitButtonText: { fontSize: 18, fontWeight: '800', color: '#FFF', letterSpacing: 0.5 }
 });
