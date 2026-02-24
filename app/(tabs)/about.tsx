@@ -1,274 +1,198 @@
 // app/(tabs)/about.js
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
-import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, Platform, ScrollView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { showError } from '../../src/ui/toast.js';
 
 export default function AboutScreen() {
     const openLink = (url) => {
-        Linking.openURL(url).catch((err) => {
-            console.error('Failed to open URL:', err);
-            showError('Unable to open link');
-        });
+        Linking.openURL(url).catch(() => showError('Unable to open link'));
     };
 
     const handleCall = (phone) => {
-        Linking.openURL(`tel:${phone}`).catch((err) => {
-            console.error('Failed to open dialer:', err);
-            showError('Unable to open dialer');
-        });
+        Linking.openURL(`tel:${phone}`).catch(() => showError('Unable to open dialer'));
     };
 
     return (
-        <ScrollView style={styles.container}>
-            {/* App Header */}
-            <View style={styles.header}>
-                <View style={styles.appIcon}>
-                    <Ionicons name="restaurant" size={50} color="#fff" />
+        <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+            <StatusBar barStyle="light-content" />
+            
+            {/* Hero Section */}
+            <View style={styles.heroSection}>
+                <View style={styles.appIconContainer}>
+                    <Ionicons name="restaurant" size={40} color="#E53935" />
                 </View>
-                <Text style={styles.appName}>Hotel Mess Manager</Text>
-                <Text style={styles.version}>v1.0.0</Text>
-            </View>
-
-            {/* Developer Info */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Developer</Text>
-                <View style={styles.devCard}>
-                    <Text style={styles.devName}>Saran Zafar</Text>
-                    <Text style={styles.devRole}>Software Engineer & Full Stack Developer.</Text>
-
-                    <View style={styles.contactInfo}>
-                        <TouchableOpacity
-                            style={styles.contactItem}
-                            onPress={() => handleCall('03119777995')}
-                        >
-                            <Ionicons name="call" size={16} color="#E53935" />
-                            <Text style={styles.contactText}>03119777995</Text>
-                        </TouchableOpacity>
-                    </View>
+                <Text style={styles.appNameText}>Hotel Mess Manager</Text>
+                <View style={styles.versionBadge}>
+                    <Text style={styles.versionText}>VERSION 2.0 • 2026 EDITION</Text>
                 </View>
             </View>
 
-            {/* Quick Links */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>Connect With Me</Text>
+            <View style={styles.contentBody}>
+                {/* Developer Card */}
+                <View style={styles.devProfileCard}>
+                    <View style={styles.profileHeader}>
+                        <View style={styles.avatarPlaceholder}>
+                            <Text style={styles.avatarText}>SZ</Text>
+                        </View>
+                        <View>
+                            <Text style={styles.devName}>Saran Zafar</Text>
+                            <Text style={styles.devTitle}>Software Engineer</Text>
+                        </View>
+                    </View>
+                    <Text style={styles.devBio}>
+                        Building high-performance offline-first applications with premium UX and modern architecture.
+                    </Text>
+                    <TouchableOpacity 
+                        style={styles.primaryContactBtn}
+                        onPress={() => handleCall('03119777995')}
+                    >
+                        <Ionicons name="call" size={18} color="#FFF" />
+                        <Text style={styles.primaryContactBtnText}>Get in Touch</Text>
+                    </TouchableOpacity>
+                </View>
 
-                <TouchableOpacity
-                    style={styles.linkButton}
-                    onPress={() => openLink('https://github.com/saranzafar')}
-                >
-                    <View style={styles.linkIcon}>
-                        <Ionicons name="logo-github" size={24} color="#333" />
+                {/* Connect Section */}
+                <Text style={styles.sectionHeading}>CONNECT & SUPPORT</Text>
+                
+                <TouchableOpacity style={styles.actionTile} onPress={() => openLink('https://github.com/saranzafar')}>
+                    <View style={[styles.tileIcon, { backgroundColor: '#F2F2F7' }]}>
+                        <Ionicons name="logo-github" size={22} color="#1C1C1E" />
                     </View>
-                    <View style={styles.linkContent}>
-                        <Text style={styles.linkTitle}>GitHub</Text>
-                        <Text style={styles.linkSubtitle}>View my projects and contributions</Text>
+                    <View style={styles.tileContent}>
+                        <Text style={styles.tileTitle}>GitHub Repository</Text>
+                        <Text style={styles.tileSubTitle}>Explore the source code</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#999" />
+                    <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={styles.linkButton}
-                    onPress={() => openLink('http://saranzafar.com/')}
-                >
-                    <View style={styles.linkIcon}>
-                        <Ionicons name="briefcase" size={24} color="#E53935" />
+                <TouchableOpacity style={styles.actionTile} onPress={() => openLink('http://saranzafar.com/')}>
+                    <View style={[styles.tileIcon, { backgroundColor: '#E3F2FD' }]}>
+                        <Ionicons name="globe-outline" size={22} color="#2196F3" />
                     </View>
-                    <View style={styles.linkContent}>
-                        <Text style={styles.linkTitle}>Portfolio</Text>
-                        <Text style={styles.linkSubtitle}>Explore my work and experience</Text>
+                    <View style={styles.tileContent}>
+                        <Text style={styles.tileTitle}>Official Portfolio</Text>
+                        <Text style={styles.tileSubTitle}>See more of my work</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#999" />
+                    <Ionicons name="chevron-forward" size={18} color="#C7C7CC" />
                 </TouchableOpacity>
 
-                <TouchableOpacity
-                    style={styles.linkButton}
-                    onPress={() => handleCall('03119777995')}
-                >
-                    <View style={styles.linkIcon}>
-                        <Ionicons name="cafe" size={24} color="#FFDD00" />
+                <TouchableOpacity style={styles.actionTile} onPress={() => handleCall('03119777995')}>
+                    <View style={[styles.tileIcon, { backgroundColor: '#FFF9C4' }]}>
+                        <Ionicons name="cafe" size={22} color="#FBC02D" />
                     </View>
-                    <View style={styles.linkContent}>
-                        <Text style={styles.linkTitle}>Support via EasyPaisa</Text>
-                        <Text style={styles.linkSubtitle}>03119777995</Text>
+                    <View style={styles.tileContent}>
+                        <Text style={styles.tileTitle}>Support via EasyPaisa</Text>
+                        <Text style={styles.tileSubTitle}>Buy me a coffee!</Text>
                     </View>
-                    <Ionicons name="chevron-forward" size={20} color="#999" />
+                    <Text style={styles.tileBadge}>03119777995</Text>
                 </TouchableOpacity>
-            </View>
 
-            {/* About App */}
-            <View style={styles.section}>
-                <Text style={styles.sectionTitle}>About This App</Text>
-                <Text style={styles.description}>
-                    A professional meal subscription management system designed for hotels and hostels.
-                    Track clients, manage subscriptions, and monitor payments efficiently.
-                </Text>
-            </View>
+                {/* Privacy Badge */}
+                <View style={styles.privacyBox}>
+                    <View style={styles.privacyIcon}>
+                        <Ionicons name="shield-checkmark" size={20} color="#34C759" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                        <Text style={styles.privacyTitle}>Local-First Architecture</Text>
+                        <Text style={styles.privacyDesc}>
+                            Your data never leaves your device. No cloud, no tracking, 100% private.
+                        </Text>
+                    </View>
+                </View>
 
-            {/* Privacy Note */}
-            <View style={styles.privacyNote}>
-                <Ionicons name="shield-checkmark" size={20} color="#E53935" />
-                <Text style={styles.privacyText}>
-                    All data stored locally. Complete privacy guaranteed.
-                </Text>
-            </View>
-
-            {/* Footer */}
-            <View style={styles.footer}>
-                <Text style={styles.footerText}>
-                    © {new Date().getFullYear()} Saran Zafar. All rights reserved.
-                </Text>
+                <View style={styles.footer}>
+                    <Text style={styles.copyrightText}>
+                        © {new Date().getFullYear()} SARAN ZAFAR DESIGNS
+                    </Text>
+                    <Text style={styles.footerTagline}>MADE WITH ❤️ FOR HOTELS</Text>
+                </View>
             </View>
         </ScrollView>
     );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#f5f5f5',
-    },
-    header: {
+    container: { flex: 1, backgroundColor: '#F2F2F7' },
+    heroSection: {
         backgroundColor: '#E53935',
-        paddingVertical: 40,
+        paddingTop: Platform.OS === 'ios' ? 80 : 60,
+        paddingBottom: 60,
         alignItems: 'center',
-        paddingTop: 50,
+        borderBottomLeftRadius: 40,
+        borderBottomRightRadius: 40,
     },
-    appIcon: {
+    appIconContainer: {
         width: 80,
         height: 80,
-        borderRadius: 20,
-        backgroundColor: 'rgba(255,255,255,0.3)',
+        borderRadius: 24,
+        backgroundColor: '#FFF',
         justifyContent: 'center',
         alignItems: 'center',
-        marginBottom: 15,
+        marginBottom: 20,
+        shadowColor: '#E53935',
+        shadowOpacity: 0.5,
+        shadowRadius: 15,
     },
-    appName: {
-        fontSize: 28,
-        fontWeight: 'bold',
-        color: '#fff',
-    },
-    version: {
-        fontSize: 12,
-        color: '#e0e0e0',
-        marginTop: 5,
-    },
-    section: {
-        paddingHorizontal: 20,
-        paddingVertical: 20,
-        backgroundColor: '#fff',
-        marginHorizontal: 15,
-        marginTop: 15,
-        borderRadius: 12,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '600',
-        color: '#333',
-        marginBottom: 15,
-    },
-    devCard: {
-        backgroundColor: '#f9f9f9',
-        padding: 16,
+    appNameText: { fontSize: 26, fontWeight: '900', color: '#FFF', letterSpacing: -0.5 },
+    versionBadge: {
+        backgroundColor: 'rgba(255,255,255,0.1)',
+        paddingHorizontal: 12,
+        paddingVertical: 6,
         borderRadius: 8,
+        marginTop: 12,
     },
-    devName: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        color: '#333',
+    versionText: { fontSize: 10, fontWeight: '800', color: '#AEAEB2', letterSpacing: 1 },
+    
+    contentBody: { paddingHorizontal: 20, marginTop: -40 },
+    
+    devProfileCard: {
+        backgroundColor: '#FFF',
+        borderRadius: 32,
+        padding: 24,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 10 },
+        shadowOpacity: 0.1,
+        shadowRadius: 20,
+        elevation: 5,
+        marginBottom: 32,
     },
-    devRole: {
-        fontSize: 14,
-        color: '#E53935',
-        marginTop: 4,
-        marginBottom: 12,
+    profileHeader: { flexDirection: 'row', alignItems: 'center', gap: 16, marginBottom: 16 },
+    avatarPlaceholder: {
+        width: 60, height: 60, borderRadius: 30, backgroundColor: '#FFEBEE',
+        justifyContent: 'center', alignItems: 'center',
     },
-    contactInfo: {
-        marginTop: 8,
+    avatarText: { fontSize: 20, fontWeight: '900', color: '#E53935' },
+    devName: { fontSize: 22, fontWeight: '900', color: '#1C1C1E' },
+    devTitle: { fontSize: 14, fontWeight: '700', color: '#E53935' },
+    devBio: { fontSize: 15, color: '#8E8E93', lineHeight: 22, marginBottom: 20, fontWeight: '500' },
+    primaryContactBtn: {
+        backgroundColor: '#1C1C1E', height: 54, borderRadius: 27,
+        flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 10,
     },
-    contactItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 8,
-        paddingVertical: 4,
+    primaryContactBtnText: { color: '#FFF', fontSize: 16, fontWeight: '800' },
+
+    sectionHeading: { fontSize: 12, fontWeight: '900', color: '#8E8E93', letterSpacing: 1.5, marginBottom: 16, marginLeft: 8 },
+    
+    actionTile: {
+        backgroundColor: '#FFF', borderRadius: 24, padding: 16, flexDirection: 'row',
+        alignItems: 'center', marginBottom: 12,
     },
-    contactText: {
-        fontSize: 14,
-        color: '#666',
+    tileIcon: { width: 48, height: 48, borderRadius: 16, justifyContent: 'center', alignItems: 'center' },
+    tileContent: { flex: 1, marginLeft: 16 },
+    tileTitle: { fontSize: 16, fontWeight: '800', color: '#1C1C1E' },
+    tileSubTitle: { fontSize: 13, color: '#8E8E93', fontWeight: '500' },
+    tileBadge: { fontSize: 11, fontWeight: '800', color: '#E53935', backgroundColor: '#FFEBEE', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+
+    privacyBox: {
+        flexDirection: 'row', gap: 16, backgroundColor: '#E8F5E9', padding: 20,
+        borderRadius: 24, marginTop: 20, alignItems: 'center',
     },
-    linkButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#f9f9f9',
-        padding: 16,
-        borderRadius: 10,
-        marginBottom: 12,
-        borderWidth: 1,
-        borderColor: '#e0e0e0',
-    },
-    linkIcon: {
-        width: 40,
-        height: 40,
-        borderRadius: 8,
-        backgroundColor: '#fff',
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginRight: 12,
-    },
-    linkContent: {
-        flex: 1,
-    },
-    linkTitle: {
-        fontSize: 16,
-        fontWeight: '600',
-        color: '#333',
-    },
-    linkSubtitle: {
-        fontSize: 13,
-        color: '#999',
-        marginTop: 2,
-    },
-    description: {
-        fontSize: 14,
-        color: '#666',
-        lineHeight: 22,
-    },
-    techList: {
-        gap: 10,
-    },
-    techItem: {
-        backgroundColor: '#f9f9f9',
-        padding: 12,
-        borderRadius: 8,
-        borderLeftWidth: 3,
-        borderLeftColor: '#E53935',
-    },
-    techName: {
-        fontSize: 14,
-        color: '#333',
-        fontWeight: '500',
-    },
-    privacyNote: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#E8F5E9',
-        marginHorizontal: 15,
-        marginTop: 15,
-        padding: 16,
-        borderRadius: 10,
-        gap: 10,
-    },
-    privacyText: {
-        fontSize: 13,
-        color: '#2E7D32',
-        flex: 1,
-    },
-    footer: {
-        paddingVertical: 30,
-        alignItems: 'center',
-    },
-    footerText: {
-        fontSize: 12,
-        color: '#999',
-    },
+    privacyIcon: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#FFF', justifyContent: 'center', alignItems: 'center' },
+    privacyTitle: { fontSize: 15, fontWeight: '800', color: '#1B5E20', marginBottom: 2 },
+    privacyDesc: { fontSize: 12, color: '#2E7D32', fontWeight: '500', lineHeight: 18 },
+
+    footer: { paddingVertical: 40, alignItems: 'center' },
+    copyrightText: { fontSize: 11, fontWeight: '800', color: '#AEAEB2', letterSpacing: 1 },
+    footerTagline: { fontSize: 10, fontWeight: '700', color: '#D1D1D6', marginTop: 8 },
 });
