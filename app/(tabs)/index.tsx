@@ -19,6 +19,7 @@ import {
   getTotalClientsCount,
   getTotalRevenue,
 } from '@/src/database/queries';
+import { showError } from '@/src/ui/toast.js';
 
 export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
@@ -55,6 +56,7 @@ export default function HomeScreen() {
       });
     } catch (error) {
       console.error('Dashboard Load Error:', error);
+      showError('Failed to load dashboard data');
     } finally {
       setLoading(false);
     }

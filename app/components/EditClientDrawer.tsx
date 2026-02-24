@@ -14,6 +14,7 @@ import {
     View,
 } from 'react-native';
 import { deleteClient, updateClient } from '../../src/database/queries';
+import { getErrorMessage, showError, showSuccess } from '../../src/ui/toast.js';
 
 export default function EditClientDrawer({ visible, onClose, client, onClientUpdated }) {
     const [name, setName] = useState('');
@@ -35,15 +36,15 @@ export default function EditClientDrawer({ visible, onClose, client, onClientUpd
 
     const validateInputs = () => {
         if (!name.trim()) {
-            Alert.alert('Error', 'Client name is required');
+            showError('Client name is required');
             return false;
         }
         if (!phone.trim()) {
-            Alert.alert('Error', 'Phone number is required');
+            showError('Phone number is required');
             return false;
         }
         if (phone.length < 10) {
-            Alert.alert('Error', 'Phone number must be at least 10 digits');
+            showError('Phone number must be at least 10 digits');
             return false;
         }
         return true;
@@ -55,11 +56,11 @@ export default function EditClientDrawer({ visible, onClose, client, onClientUpd
         try {
             setLoading(true);
             await updateClient(client.id, name, phone, email, address, notes);
-            Alert.alert('Success', 'Client updated successfully!');
+            showSuccess('Client updated successfully');
             onClose();
             onClientUpdated();
         } catch (error) {
-            Alert.alert('Error', error.message || 'Failed to update client');
+            showError(getErrorMessage(error, 'Failed to update client'));
         } finally {
             setLoading(false);
         }
@@ -77,11 +78,11 @@ export default function EditClientDrawer({ visible, onClose, client, onClientUpd
                         try {
                             setLoading(true);
                             await deleteClient(client.id);
-                            Alert.alert('Success', 'Client deleted successfully!');
+                            showSuccess('Client deleted successfully');
                             onClose();
                             onClientUpdated();
                         } catch (error) {
-                            Alert.alert('Error', error.message || 'Failed to delete client');
+                            showError(getErrorMessage(error, 'Failed to delete client'));
                         } finally {
                             setLoading(false);
                         }

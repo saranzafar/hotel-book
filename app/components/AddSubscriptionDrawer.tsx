@@ -4,7 +4,6 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import React, { useEffect, useState } from 'react';
 import {
     ActivityIndicator,
-    Alert,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -16,6 +15,7 @@ import {
     View
 } from 'react-native';
 import { addSubscription, getAllClients } from '../../src/database/queries';
+import { getErrorMessage, showError, showSuccess } from '../../src/ui/toast.js';
 
 export default function AddSubscriptionDrawer({
     visible,
@@ -48,7 +48,7 @@ export default function AddSubscriptionDrawer({
             const data = await getAllClients();
             setClients(data);
         } catch {
-            Alert.alert('Error', 'Failed to load clients');
+            showError('Failed to load clients');
         } finally {
             setLoadingClients(false);
         }
@@ -82,27 +82,27 @@ export default function AddSubscriptionDrawer({
 
     const validateInputs = () => {
         if (!selectedClient) {
-            Alert.alert('Error', 'Please select a client');
+            showError('Please select a client');
             return false;
         }
         if (!totalAmount.trim()) {
-            Alert.alert('Error', 'Total amount is required');
+            showError('Total amount is required');
             return false;
         }
         if (isNaN(totalAmount) || parseFloat(totalAmount) <= 0) {
-            Alert.alert('Error', 'Enter a valid positive total amount');
+            showError('Enter a valid positive total amount');
             return false;
         }
         if (amountPaid && (isNaN(amountPaid) || parseFloat(amountPaid) < 0)) {
-            Alert.alert('Error', 'Amount paid must be a non-negative number');
+            showError('Amount paid must be a non-negative number');
             return false;
         }
         if (amountPaid && parseFloat(amountPaid) > parseFloat(totalAmount)) {
-            Alert.alert('Error', 'Amount paid cannot be greater than total amount');
+            showError('Amount paid cannot be greater than total amount');
             return false;
         }
         if (normalizeDate(endDate) < normalizeDate(startDate)) {
-            Alert.alert('Error', 'End date cannot be before start date');
+            showError('End date cannot be before start date');
             return false;
         }
         return true;
@@ -125,12 +125,12 @@ export default function AddSubscriptionDrawer({
                 ''
             );
 
-            Alert.alert('Success', 'Subscription added!');
+            showSuccess('Subscription added');
             resetForm();
             onClose();
             onSubscriptionAdded();
         } catch (error) {
-            Alert.alert('Error', error.message || 'Could not add subscription');
+            showError(getErrorMessage(error, 'Could not add subscription'));
         } finally {
             setLoading(false);
         }

@@ -12,6 +12,7 @@ import {
     View,
 } from 'react-native';
 import { getAllClients, searchClients } from '../../src/database/queries';
+import { showError } from '../../src/ui/toast.js';
 import AddClientDrawer from '../components/AddClientDrawer';
 import EditClientDrawer from '../components/EditClientDrawer';
 
@@ -42,6 +43,7 @@ export default function ClientsScreen() {
             setFilteredClients(data);
         } catch (error) {
             console.error('Error loading clients:', error);
+            showError('Failed to load clients');
         } finally {
             setLoading(false);
         }
@@ -57,6 +59,7 @@ export default function ClientsScreen() {
                 setFilteredClients(results);
             } catch (error) {
                 console.error('Error searching clients:', error);
+                showError('Failed to search clients');
             }
         }
     };

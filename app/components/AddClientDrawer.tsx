@@ -2,7 +2,6 @@
 import { Ionicons } from '@expo/vector-icons';
 import React, { useState } from 'react';
 import {
-    Alert,
     KeyboardAvoidingView,
     Modal,
     Platform,
@@ -14,6 +13,7 @@ import {
     View,
 } from 'react-native';
 import { addClient } from '../../src/database/queries';
+import { getErrorMessage, showError, showSuccess } from '../../src/ui/toast.js';
 
 export default function AddClientDrawer({ visible, onClose, onClientAdded }) {
     const [name, setName] = useState('');
@@ -25,15 +25,15 @@ export default function AddClientDrawer({ visible, onClose, onClientAdded }) {
 
     const validateInputs = () => {
         if (!name.trim()) {
-            Alert.alert('Error', 'Client name is required');
+            showError('Client name is required');
             return false;
         }
         if (!phone.trim()) {
-            Alert.alert('Error', 'Phone number is required');
+            showError('Phone number is required');
             return false;
         }
         if (phone.length < 10) {
-            Alert.alert('Error', 'Phone number must be at least 10 digits');
+            showError('Phone number must be at least 10 digits');
             return false;
         }
         return true;
@@ -45,15 +45,16 @@ export default function AddClientDrawer({ visible, onClose, onClientAdded }) {
         try {
             setLoading(true);
             await addClient(name, phone, email, address, notes);
-            Alert.alert('Success', 'Client added successfully!');
+            showSuccess('Client added successfully');
             resetForm();
             onClose();
             onClientAdded();
         } catch (error) {
-            if (error.message.includes('UNIQUE constraint failed')) {
-                Alert.alert('Error', 'This phone number already exists');
+            const message = getErrorMessage(error, 'Failed to add client');
+            if (message.includes('UNIQUE constraint failed')) {
+                showError('This phone number already exists');
             } else {
-                Alert.alert('Error', error.message || 'Failed to add client');
+                showError(message);
             }
         } finally {
             setLoading(false);

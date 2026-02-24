@@ -2,14 +2,21 @@
 import { Ionicons } from '@expo/vector-icons';
 import React from 'react';
 import { Linking, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { showError } from '../../src/ui/toast.js';
 
 export default function AboutScreen() {
     const openLink = (url) => {
-        Linking.openURL(url).catch(err => console.error("Failed to open URL:", err));
+        Linking.openURL(url).catch((err) => {
+            console.error('Failed to open URL:', err);
+            showError('Unable to open link');
+        });
     };
 
     const handleCall = (phone) => {
-        Linking.openURL(`tel:${phone}`).catch(err => console.error("Failed to open dialer:", err));
+        Linking.openURL(`tel:${phone}`).catch((err) => {
+            console.error('Failed to open dialer:', err);
+            showError('Unable to open dialer');
+        });
     };
 
     return (

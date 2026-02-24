@@ -2,7 +2,9 @@
 import { Stack } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
+import Toast from 'react-native-toast-message';
 import { closeDB, initDB } from '../src/database/db';
+import { toastConfig } from '../src/ui/toast.js';
 
 export default function RootLayout() {
   const [dbReady, setDbReady] = useState(false);
@@ -33,30 +35,39 @@ export default function RootLayout() {
 
   if (dbError && !dbReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
-        <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 10, color: '#333' }}>Database Error</Text>
-        <Text style={{ textAlign: 'center', color: '#666', marginBottom: 18 }}>{dbError}</Text>
-        <TouchableOpacity
-          style={{ backgroundColor: '#E53935', paddingVertical: 12, paddingHorizontal: 22, borderRadius: 8 }}
-          onPress={initializeDatabase}
-        >
-          <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
-        </TouchableOpacity>
-      </View>
+      <>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 24 }}>
+          <Text style={{ fontSize: 18, fontWeight: '700', marginBottom: 10, color: '#333' }}>Database Error</Text>
+          <Text style={{ textAlign: 'center', color: '#666', marginBottom: 18 }}>{dbError}</Text>
+          <TouchableOpacity
+            style={{ backgroundColor: '#E53935', paddingVertical: 12, paddingHorizontal: 22, borderRadius: 8 }}
+            onPress={initializeDatabase}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+        <Toast config={toastConfig} />
+      </>
     );
   }
 
   if (!dbReady) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-        <ActivityIndicator size="large" color="#E53935" />
-      </View>
+      <>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#E53935" />
+        </View>
+        <Toast config={toastConfig} />
+      </>
     );
   }
 
   return (
-    <Stack>
-      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-    </Stack>
+    <>
+      <Stack>
+        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      </Stack>
+      <Toast config={toastConfig} />
+    </>
   );
 }

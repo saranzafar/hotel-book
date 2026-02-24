@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 
 import { getAllSubscriptions } from '../../src/database/queries';
+import { showError } from '../../src/ui/toast.js';
 import AddSubscriptionDrawer from '../components/AddSubscriptionDrawer';
 import EditSubscriptionDrawer from '../components/EditSubscriptionDrawer';
 
@@ -53,6 +54,7 @@ export default function MessScreen() {
             setSubscriptions(data);
         } catch (error) {
             console.error('Error loading subscriptions:', error);
+            showError('Failed to load subscriptions');
         } finally {
             setLoading(false);
         }

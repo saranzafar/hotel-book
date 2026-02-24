@@ -16,6 +16,7 @@ import {
     View,
 } from 'react-native';
 import { deleteSubscription, updateSubscription } from '../../src/database/queries';
+import { getErrorMessage, showError, showSuccess } from '../../src/ui/toast.js';
 
 export default function EditSubscriptionDrawer({ visible, onClose, subscription, onSubscriptionUpdated }) {
     const [startDate, setStartDate] = useState(new Date());
@@ -76,23 +77,23 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
 
     const validateInputs = () => {
         if (!totalAmount.trim()) {
-            Alert.alert('Error', 'Total amount is required');
+            showError('Total amount is required');
             return false;
         }
         if (isNaN(totalAmount) || parseFloat(totalAmount) <= 0) {
-            Alert.alert('Error', 'Total amount must be a valid positive number');
+            showError('Total amount must be a valid positive number');
             return false;
         }
         if (amountPaid && (isNaN(amountPaid) || parseFloat(amountPaid) < 0)) {
-            Alert.alert('Error', 'Amount paid must be a non-negative number');
+            showError('Amount paid must be a non-negative number');
             return false;
         }
         if (amountPaid && parseFloat(amountPaid) > parseFloat(totalAmount)) {
-            Alert.alert('Error', 'Amount paid cannot be greater than total amount');
+            showError('Amount paid cannot be greater than total amount');
             return false;
         }
         if (normalizeDate(endDate) < normalizeDate(startDate)) {
-            Alert.alert('Error', 'End date cannot be before start date');
+            showError('End date cannot be before start date');
             return false;
         }
         return true;
@@ -119,11 +120,11 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
                 ''
             );
 
-            Alert.alert('Success', 'Subscription updated successfully!');
+            showSuccess('Subscription updated successfully');
             onClose();
             onSubscriptionUpdated();
         } catch (error) {
-            Alert.alert('Error', error.message || 'Failed to update subscription');
+            showError(getErrorMessage(error, 'Failed to update subscription'));
         } finally {
             setLoading(false);
         }
@@ -141,11 +142,11 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
                         try {
                             setLoading(true);
                             await deleteSubscription(subscription.id);
-                            Alert.alert('Success', 'Subscription deleted successfully!');
+                            showSuccess('Subscription deleted successfully');
                             onClose();
                             onSubscriptionUpdated();
                         } catch (error) {
-                            Alert.alert('Error', error.message || 'Failed to delete subscription');
+                            showError(getErrorMessage(error, 'Failed to delete subscription'));
                         } finally {
                             setLoading(false);
                         }
