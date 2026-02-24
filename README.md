@@ -131,14 +131,14 @@ hotel-book/
 
 ## 🛠️ Technology Stack
 
-| Tool | Purpose |
-|------|---------|
-| **React Native** | Cross-platform mobile framework |
-| **Expo** | Development platform and deployment |
-| **Expo Router** | File-based routing |
-| **SQLite** | Local database (no server required) |
-| **Ionicons** | Icon library |
-| **React Navigation** | Screen navigation |
+| Tool                 | Purpose                             |
+| -------------------- | ----------------------------------- |
+| **React Native**     | Cross-platform mobile framework     |
+| **Expo**             | Development platform and deployment |
+| **Expo Router**      | File-based routing                  |
+| **SQLite**           | Local database (no server required) |
+| **Ionicons**         | Icon library                        |
+| **React Navigation** | Screen navigation                   |
 
 ---
 
@@ -197,7 +197,7 @@ This project is open-source and available under the MIT License.
 Found a bug or have a suggestion? Feel free to open an issue or reach out.
 
 - **Developer:** Saran Zafar
-- **Email:** <saran.development@example.com>  
+- **Email:** <saran.development@example.com>
 - **Phone:** +91 XXXXX XXXXX
 
 ---
@@ -209,4 +209,4 @@ Built with ❤️ using React Native and Expo to make hotel and mess management 
 ---
 
 **Last Updated:** Feb 2026  
-**Version:** 1.0.0
+**Version:** 2.0.0
