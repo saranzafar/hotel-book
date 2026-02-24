@@ -47,19 +47,28 @@ export default function AddSubscriptionDrawer({
             setLoadingClients(true);
             const data = await getAllClients();
             setClients(data);
-        } catch (error) {
+        } catch {
             Alert.alert('Error', 'Failed to load clients');
         } finally {
             setLoadingClients(false);
         }
     };
 
+    const normalizeDate = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
     const calculateTotalDays = () => {
-        const diffTime = Math.abs(endDate - startDate);
-        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const start = normalizeDate(startDate);
+        const end = normalizeDate(endDate);
+        const diffTime = end.getTime() - start.getTime();
+        return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
     };
 
-    const formatDate = (date) => date.toISOString().split('T')[0];
+    const formatDate = (date) => {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    };
 
     const handleStartDateChange = (_, selectedDate) => {
         setShowStartDatePicker(false);
@@ -84,12 +93,16 @@ export default function AddSubscriptionDrawer({
             Alert.alert('Error', 'Enter a valid positive total amount');
             return false;
         }
-        if (amountPaid && isNaN(amountPaid)) {
-            Alert.alert('Error', 'Amount paid must be numeric');
+        if (amountPaid && (isNaN(amountPaid) || parseFloat(amountPaid) < 0)) {
+            Alert.alert('Error', 'Amount paid must be a non-negative number');
             return false;
         }
-        if (endDate <= startDate) {
-            Alert.alert('Error', 'End date must be after start date');
+        if (amountPaid && parseFloat(amountPaid) > parseFloat(totalAmount)) {
+            Alert.alert('Error', 'Amount paid cannot be greater than total amount');
+            return false;
+        }
+        if (normalizeDate(endDate) < normalizeDate(startDate)) {
+            Alert.alert('Error', 'End date cannot be before start date');
             return false;
         }
         return true;
@@ -130,6 +143,7 @@ export default function AddSubscriptionDrawer({
         setEndDate(new Date());
         setTotalAmount('');
         setAmountPaid('');
+        setShowClientPicker(false);
     };
 
     const filteredClients = clients.filter(
@@ -274,7 +288,7 @@ export default function AddSubscriptionDrawer({
                         </View>
 
                         {/* TOTAL DAYS */}
-                        {endDate > startDate && (
+                        {normalizeDate(endDate) >= normalizeDate(startDate) && (
                             <View style={styles.daysDisplay}>
                                 <Ionicons name="timer" size={18} color="#E53935" />
                                 <Text style={styles.daysText}>
@@ -331,8 +345,8 @@ export default function AddSubscriptionDrawer({
                                 <Text style={styles.remainingValue}>
                                     ₹
                                     {(
-                                        parseFloat(totalAmount) -
-                                        (amountPaid ? parseFloat(amountPaid) : 0)
+                                        (parseFloat(totalAmount) || 0) -
+                                        (amountPaid ? (parseFloat(amountPaid) || 0) : 0)
                                     ).toFixed(2)}
                                 </Text>
                             </View>

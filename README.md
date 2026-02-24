@@ -7,11 +7,11 @@ A mobile-first application designed to simplify meal subscription management for
 ## ✨ Features
 
 - **Client Management** – Add, edit, and manage client profiles with contact information
-- **Meal Subscriptions** – Create flexible subscription plans (10/20/30 days or custom)
-- **Payment Tracking** – Monitor paid, pending, and overdue payments at a glance
+- **Meal Subscriptions** – Create and manage date-based subscription plans
+- **Payment Tracking** – Monitor paid and pending balances at a glance
 - **Live Dashboard** – Real-time metrics including active subscriptions, revenue, and payment status
-- **Smart Search** – Quickly find clients or subscriptions by name or phone
-- **Status Filtering** – Filter subscriptions by active, expired, or pending status
+- **Smart Search** – Quickly find clients by name/phone and subscriptions by client name
+- **Status Filtering** – Filter subscriptions by all, active, or expired status
 - **Offline-First** – All data stored locally on your device—no internet required
 
 ---
@@ -20,9 +20,8 @@ A mobile-first application designed to simplify meal subscription management for
 
 ### Prerequisites
 
-- Node.js (v16 or higher)
+- Node.js (v18 or higher)
 - npm or yarn
-- Expo CLI installed globally (`npm install -g expo-cli`)
 - Android/iOS device or emulator
 
 ### Installation
@@ -40,19 +39,13 @@ A mobile-first application designed to simplify meal subscription management for
    npm install
    ```
 
-3. **Install required packages**
-
-   ```bash
-   npx expo install expo-sqlite @react-native-community/datetimepicker
-   ```
-
-4. **Start the development server**
+3. **Start the development server**
 
    ```bash
    npx expo start
    ```
 
-5. **Open on your device**
+4. **Open on your device**
    - Scan the QR code with Expo Go app (iOS/Android)
    - Or press `a` for Android emulator or `i` for iOS simulator
 
@@ -61,22 +54,21 @@ A mobile-first application designed to simplify meal subscription management for
 ## 📱 App Structure
 
 ```
-hotel-mess-manager/
+hotel-book/
 ├── app/
 │   ├── (tabs)/
-│   │   ├── _layout.js          # Tab navigation
-│   │   ├── index.js            # Home dashboard
-│   │   ├── clients.js          # Client management
-│   │   ├── mess.js             # Subscription management
-│   │   └── about.js            # About screen
+│   │   ├── _layout.tsx         # Tab navigation
+│   │   ├── index.tsx           # Home dashboard
+│   │   ├── clients.tsx         # Client management
+│   │   ├── mess.tsx            # Subscription management
+│   │   └── about.tsx           # About screen
 │   ├── components/
-│   │   ├── AddClientDrawer.js
-│   │   ├── EditClientDrawer.js
-│   │   ├── AddSubscriptionDrawer.js
-│   │   └── EditSubscriptionDrawer.js
-│   │   └── components/dashboard # Here all dashboard components
-│   ├── _layout.js              # App initialization
-│   └── database/
+│   │   ├── AddClientDrawer.tsx
+│   │   ├── EditClientDrawer.tsx
+│   │   ├── AddSubscriptionDrawer.tsx
+│   │   ├── EditSubscriptionDrawer.tsx
+│   │   └── dashboard/
+│   └── _layout.tsx             # App initialization
 ├── src/
 │   └── database/
 │       ├── db.js               # SQLite setup
@@ -132,7 +124,7 @@ hotel-mess-manager/
 - **Home** tab shows key metrics:
   - Active subscriptions count
   - Total revenue collected
-  - Pending payments and overdue amounts
+  - Pending payment counts
   - Subscriptions expiring in the next 7 days
 
 ---
@@ -156,9 +148,9 @@ hotel-mess-manager/
 
 - **clients** – Store client information (name, phone, email, address)
 - **mess_subscriptions** – Track meal subscriptions (dates, amounts, status)
-- **payments** – Record payment history (optional for detailed tracking)
+- **payments** – Record payment history
 
-All data is encrypted and stored locally on your device.
+Data is stored locally in SQLite on your device.
 
 ---
 
@@ -166,6 +158,7 @@ All data is encrypted and stored locally on your device.
 
 - **100% Offline** – No internet connection needed after installation
 - **Local Storage** – All data remains on your device
+- **No Built-in Encryption** – Database encryption is not currently enabled
 - **No Cloud Sync** – Your information stays private and secure
 - **No Ads or Tracking** – Clean, distraction-free experience
 
@@ -215,5 +208,5 @@ Built with ❤️ using React Native and Expo to make hotel and mess management 
 
 ---
 
-**Last Updated:** Nov 2025  
+**Last Updated:** Feb 2026  
 **Version:** 1.0.0

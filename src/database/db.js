@@ -2,21 +2,52 @@
 import * as SQLite from 'expo-sqlite';
 
 let db = null;
+let initPromise = null;
+const TARGET_SCHEMA_VERSION = 1;
 
 // Initialize database
 export const initDB = async () => {
-    try {
-        db = await SQLite.openDatabaseAsync('HotelMess.db');
-        console.log('✅ Database opened successfully');
-        await createTables();
+    if (db) {
         return db;
-    } catch (error) {
-        console.error('❌ Error opening database:', error);
-        throw error;
     }
+
+    if (initPromise) {
+        return initPromise;
+    }
+
+    initPromise = (async () => {
+        try {
+            db = await SQLite.openDatabaseAsync('HotelMess.db');
+            await db.execAsync('PRAGMA foreign_keys = ON;');
+            console.log('✅ Database opened successfully');
+            await migrateSchema();
+            return db;
+        } catch (error) {
+            db = null;
+            console.error('❌ Error opening database:', error);
+            throw error;
+        } finally {
+            initPromise = null;
+        }
+    })();
+
+    return initPromise;
 };
 
-// Create all tables
+const migrateSchema = async () => {
+    await createTables();
+    await createIndexes();
+
+    const needsMigration = await schemaNeedsMigration();
+    if (needsMigration) {
+        await rebuildTablesWithConstraints();
+        await createIndexes();
+    }
+
+    await db.execAsync(`PRAGMA user_version = ${TARGET_SCHEMA_VERSION};`);
+};
+
+// Create all tables with safety constraints for integrity.
 const createTables = async () => {
     try {
         // Clients table
@@ -38,17 +69,17 @@ const createTables = async () => {
       CREATE TABLE IF NOT EXISTS mess_subscriptions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         clientId INTEGER NOT NULL,
-        startDate DATE NOT NULL,
-        endDate DATE NOT NULL,
-        totalDays INTEGER NOT NULL,
+        startDate TEXT NOT NULL,
+        endDate TEXT NOT NULL,
+        totalDays INTEGER NOT NULL CHECK(totalDays > 0),
         planType TEXT,
-        totalAmount DECIMAL NOT NULL,
-        amountPaid DECIMAL DEFAULT 0,
-        isActive BOOLEAN DEFAULT 1,
+        totalAmount REAL NOT NULL CHECK(totalAmount > 0),
+        amountPaid REAL NOT NULL DEFAULT 0 CHECK(amountPaid >= 0 AND amountPaid <= totalAmount),
+        isActive INTEGER NOT NULL DEFAULT 1 CHECK(isActive IN (0, 1)),
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         lastModified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         notes TEXT,
-        FOREIGN KEY(clientId) REFERENCES clients(id)
+        FOREIGN KEY(clientId) REFERENCES clients(id) ON DELETE CASCADE
       );
     `);
         console.log('✅ Mess subscriptions table created');
@@ -58,17 +89,146 @@ const createTables = async () => {
       CREATE TABLE IF NOT EXISTS payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         subscriptionId INTEGER NOT NULL,
-        amount DECIMAL NOT NULL,
-        paymentDate DATE NOT NULL,
+        amount REAL NOT NULL CHECK(amount > 0),
+        paymentDate TEXT NOT NULL,
         paymentMethod TEXT,
         notes TEXT,
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY(subscriptionId) REFERENCES mess_subscriptions(id)
+        FOREIGN KEY(subscriptionId) REFERENCES mess_subscriptions(id) ON DELETE CASCADE
       );
     `);
         console.log('✅ Payments table created');
     } catch (error) {
         console.error('❌ Error creating tables:', error);
+        throw error;
+    }
+};
+
+const createIndexes = async () => {
+    await db.execAsync(`
+      CREATE INDEX IF NOT EXISTS idx_mess_subscriptions_clientId ON mess_subscriptions(clientId);
+      CREATE INDEX IF NOT EXISTS idx_mess_subscriptions_endDate ON mess_subscriptions(endDate);
+      CREATE INDEX IF NOT EXISTS idx_mess_subscriptions_isActive ON mess_subscriptions(isActive);
+      CREATE INDEX IF NOT EXISTS idx_payments_subscriptionId ON payments(subscriptionId);
+    `);
+};
+
+const getTableSQL = async (tableName) => {
+    const row = await db.getFirstAsync(
+        `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?`,
+        [tableName]
+    );
+    return row?.sql || '';
+};
+
+const schemaNeedsMigration = async () => {
+    const messForeignKeys = await db.getAllAsync(`PRAGMA foreign_key_list(mess_subscriptions)`);
+    const paymentsForeignKeys = await db.getAllAsync(`PRAGMA foreign_key_list(payments)`);
+    const messSql = await getTableSQL('mess_subscriptions');
+    const paymentsSql = await getTableSQL('payments');
+
+    const hasMessCascade = messForeignKeys.some(
+        (fk) =>
+            fk.table === 'clients' &&
+            String(fk.from).toLowerCase() === 'clientid' &&
+            String(fk.on_delete).toUpperCase() === 'CASCADE'
+    );
+    const hasPaymentsCascade = paymentsForeignKeys.some(
+        (fk) =>
+            fk.table === 'mess_subscriptions' &&
+            String(fk.from).toLowerCase() === 'subscriptionid' &&
+            String(fk.on_delete).toUpperCase() === 'CASCADE'
+    );
+
+    const hasSubscriptionChecks =
+        messSql.includes('CHECK(totalDays > 0)') &&
+        messSql.includes('CHECK(totalAmount > 0)') &&
+        messSql.includes('CHECK(amountPaid >= 0 AND amountPaid <= totalAmount)');
+    const hasPaymentChecks = paymentsSql.includes('CHECK(amount > 0)');
+
+    return !hasMessCascade || !hasPaymentsCascade || !hasSubscriptionChecks || !hasPaymentChecks;
+};
+
+const rebuildTablesWithConstraints = async () => {
+    try {
+        await db.execAsync('PRAGMA foreign_keys = OFF; BEGIN IMMEDIATE TRANSACTION;');
+
+        await db.execAsync(`
+          CREATE TABLE mess_subscriptions_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            clientId INTEGER NOT NULL,
+            startDate TEXT NOT NULL,
+            endDate TEXT NOT NULL,
+            totalDays INTEGER NOT NULL CHECK(totalDays > 0),
+            planType TEXT,
+            totalAmount REAL NOT NULL CHECK(totalAmount > 0),
+            amountPaid REAL NOT NULL DEFAULT 0 CHECK(amountPaid >= 0 AND amountPaid <= totalAmount),
+            isActive INTEGER NOT NULL DEFAULT 1 CHECK(isActive IN (0, 1)),
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            lastModified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            notes TEXT,
+            FOREIGN KEY(clientId) REFERENCES clients(id) ON DELETE CASCADE
+          );
+
+          INSERT INTO mess_subscriptions_new
+          (id, clientId, startDate, endDate, totalDays, planType, totalAmount, amountPaid, isActive, createdAt, lastModified, notes)
+          SELECT
+            id,
+            clientId,
+            COALESCE(startDate, date('now', 'localtime')),
+            COALESCE(endDate, COALESCE(startDate, date('now', 'localtime'))),
+            CASE WHEN totalDays IS NULL OR totalDays < 1 THEN 1 ELSE totalDays END,
+            COALESCE(planType, 'custom'),
+            CASE WHEN totalAmount IS NULL OR totalAmount <= 0 THEN 0.01 ELSE totalAmount END,
+            CASE
+              WHEN amountPaid IS NULL OR amountPaid < 0 THEN 0
+              WHEN totalAmount IS NULL OR totalAmount <= 0 THEN 0
+              WHEN amountPaid > totalAmount THEN totalAmount
+              ELSE amountPaid
+            END,
+            CASE WHEN isActive = 0 THEN 0 ELSE 1 END,
+            COALESCE(createdAt, CURRENT_TIMESTAMP),
+            COALESCE(lastModified, CURRENT_TIMESTAMP),
+            notes
+          FROM mess_subscriptions
+          WHERE clientId IN (SELECT id FROM clients);
+
+          DROP TABLE mess_subscriptions;
+          ALTER TABLE mess_subscriptions_new RENAME TO mess_subscriptions;
+
+          CREATE TABLE payments_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            subscriptionId INTEGER NOT NULL,
+            amount REAL NOT NULL CHECK(amount > 0),
+            paymentDate TEXT NOT NULL,
+            paymentMethod TEXT,
+            notes TEXT,
+            createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY(subscriptionId) REFERENCES mess_subscriptions(id) ON DELETE CASCADE
+          );
+
+          INSERT INTO payments_new
+          (id, subscriptionId, amount, paymentDate, paymentMethod, notes, createdAt)
+          SELECT
+            id,
+            subscriptionId,
+            CASE WHEN amount IS NULL OR amount <= 0 THEN 0.01 ELSE amount END,
+            COALESCE(paymentDate, date('now', 'localtime')),
+            paymentMethod,
+            notes,
+            COALESCE(createdAt, CURRENT_TIMESTAMP)
+          FROM payments
+          WHERE subscriptionId IN (SELECT id FROM mess_subscriptions);
+
+          DROP TABLE payments;
+          ALTER TABLE payments_new RENAME TO payments;
+        `);
+
+        await db.execAsync('COMMIT; PRAGMA foreign_keys = ON;');
+        console.log('✅ Database schema migrated to enforce integrity constraints');
+    } catch (error) {
+        await db.execAsync('ROLLBACK; PRAGMA foreign_keys = ON;');
+        console.error('❌ Error migrating database schema:', error);
         throw error;
     }
 };
@@ -81,11 +241,19 @@ export const getDB = () => {
     return db;
 };
 
+export const getDBAsync = async () => {
+    if (db) {
+        return db;
+    }
+    return initDB();
+};
+
 // Close database
 export const closeDB = async () => {
     if (db) {
         try {
             await db.closeAsync();
+            db = null;
             console.log('✅ Database closed');
         } catch (error) {
             console.error('❌ Error closing database:', error);

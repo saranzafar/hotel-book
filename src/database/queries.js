@@ -1,5 +1,5 @@
 // src/database/queries.js
-import { getDB } from './db';
+import { getDBAsync } from './db';
 
 const getTodayLocalDateString = () => {
     const now = new Date();
@@ -10,13 +10,13 @@ const getTodayLocalDateString = () => {
 
 // Auto-expire subscriptions whose end date has passed.
 const syncExpiredSubscriptions = async () => {
-    const db = getDB();
+    const db = await getDBAsync();
     await db.runAsync(
         `UPDATE mess_subscriptions
          SET isActive = 0,
              lastModified = CURRENT_TIMESTAMP
          WHERE isActive = 1
-           AND date(endDate) <= date('now', 'localtime')`
+           AND date(endDate) < date('now', 'localtime')`
     );
 };
 
@@ -25,7 +25,7 @@ const syncExpiredSubscriptions = async () => {
 // Add new client
 export const addClient = async (name, phone, email = '', address = '', notes = '') => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.runAsync(
             `INSERT INTO clients (name, phone, email, address, notes) 
        VALUES (?, ?, ?, ?, ?)`,
@@ -41,7 +41,7 @@ export const addClient = async (name, phone, email = '', address = '', notes = '
 // Get all clients
 export const getAllClients = async () => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getAllAsync('SELECT * FROM clients ORDER BY name ASC');
         return result;
     } catch (error) {
@@ -53,7 +53,7 @@ export const getAllClients = async () => {
 // Search clients by name or phone
 export const searchClients = async (searchTerm) => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getAllAsync(
             `SELECT * FROM clients 
        WHERE name LIKE ? OR phone LIKE ? 
@@ -70,7 +70,7 @@ export const searchClients = async (searchTerm) => {
 // Get client by ID
 export const getClientById = async (clientId) => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getFirstAsync(
             'SELECT * FROM clients WHERE id = ?',
             [clientId]
@@ -85,7 +85,7 @@ export const getClientById = async (clientId) => {
 // Update client
 export const updateClient = async (clientId, name, phone, email, address, notes) => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
         await db.runAsync(
             `UPDATE clients 
        SET name = ?, phone = ?, email = ?, address = ?, notes = ? 
@@ -101,7 +101,7 @@ export const updateClient = async (clientId, name, phone, email, address, notes)
 // Delete client
 export const deleteClient = async (clientId) => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
         await db.runAsync('DELETE FROM clients WHERE id = ?', [clientId]);
     } catch (error) {
         console.error('Error deleting client:', error);
@@ -124,9 +124,22 @@ export const addSubscription = async (
     notes = ''
 ) => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
+        if (Number(totalAmount) <= 0) {
+            throw new Error('Total amount must be greater than 0');
+        }
+        if (Number(amountPaid) < 0) {
+            throw new Error('Amount paid cannot be negative');
+        }
+        if (Number(amountPaid) > Number(totalAmount)) {
+            throw new Error('Amount paid cannot be greater than total amount');
+        }
+        if (endDate < startDate) {
+            throw new Error('End date cannot be before start date');
+        }
+
         const today = getTodayLocalDateString();
-        const safeIsActive = endDate <= today ? 0 : isActive;
+        const safeIsActive = endDate < today ? 0 : isActive;
         const result = await db.runAsync(
             `INSERT INTO mess_subscriptions 
        (clientId, startDate, endDate, totalDays, planType, totalAmount, amountPaid, isActive, notes) 
@@ -154,7 +167,7 @@ export const addSubscription = async (
 export const getAllSubscriptions = async () => {
     try {
         await syncExpiredSubscriptions();
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getAllAsync(`
       SELECT ms.*, c.name as clientName, c.phone 
       FROM mess_subscriptions ms 
@@ -172,7 +185,7 @@ export const getAllSubscriptions = async () => {
 export const getActiveSubscriptions = async () => {
     try {
         await syncExpiredSubscriptions();
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getAllAsync(`
       SELECT ms.*, c.name as clientName, c.phone 
       FROM mess_subscriptions ms 
@@ -191,7 +204,7 @@ export const getActiveSubscriptions = async () => {
 export const searchSubscriptions = async (searchTerm) => {
     try {
         await syncExpiredSubscriptions();
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getAllAsync(
             `SELECT ms.*, c.name as clientName, c.phone 
        FROM mess_subscriptions ms 
@@ -211,7 +224,7 @@ export const searchSubscriptions = async (searchTerm) => {
 export const getSubscriptionById = async (subscriptionId) => {
     try {
         await syncExpiredSubscriptions();
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getFirstAsync(
             `SELECT ms.*, c.name as clientName, c.phone 
        FROM mess_subscriptions ms 
@@ -230,7 +243,7 @@ export const getSubscriptionById = async (subscriptionId) => {
 export const getClientSubscriptions = async (clientId) => {
     try {
         await syncExpiredSubscriptions();
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getAllAsync(
             `SELECT * FROM mess_subscriptions 
        WHERE clientId = ? 
@@ -257,9 +270,22 @@ export const updateSubscription = async (
     notes
 ) => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
+        if (Number(totalAmount) <= 0) {
+            throw new Error('Total amount must be greater than 0');
+        }
+        if (Number(amountPaid) < 0) {
+            throw new Error('Amount paid cannot be negative');
+        }
+        if (Number(amountPaid) > Number(totalAmount)) {
+            throw new Error('Amount paid cannot be greater than total amount');
+        }
+        if (endDate < startDate) {
+            throw new Error('End date cannot be before start date');
+        }
+
         const today = getTodayLocalDateString();
-        const safeIsActive = endDate <= today ? 0 : isActive;
+        const safeIsActive = endDate < today ? 0 : isActive;
         await db.runAsync(
             `UPDATE mess_subscriptions 
        SET startDate = ?, endDate = ?, totalDays = ?, totalAmount = ?, 
@@ -276,7 +302,7 @@ export const updateSubscription = async (
 // Delete subscription
 export const deleteSubscription = async (subscriptionId) => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
         await db.runAsync('DELETE FROM mess_subscriptions WHERE id = ?', [subscriptionId]);
     } catch (error) {
         console.error('Error deleting subscription:', error);
@@ -288,26 +314,51 @@ export const deleteSubscription = async (subscriptionId) => {
 
 // Add payment
 export const addPayment = async (subscriptionId, amount, paymentDate, paymentMethod = '', notes = '') => {
+    let db;
+    let transactionStarted = false;
     try {
-        const db = getDB();
+        db = await getDBAsync();
+        const parsedAmount = Number(amount);
+        if (!Number.isFinite(parsedAmount) || parsedAmount <= 0) {
+            throw new Error('Payment amount must be a valid positive number');
+        }
+
+        await db.execAsync('BEGIN IMMEDIATE TRANSACTION;');
+        transactionStarted = true;
+        const subscription = await db.getFirstAsync(
+            `SELECT id, amountPaid, totalAmount FROM mess_subscriptions WHERE id = ?`,
+            [subscriptionId]
+        );
+
+        if (!subscription) {
+            throw new Error('Subscription not found');
+        }
+
+        const newAmountPaid = Number(subscription.amountPaid) + parsedAmount;
+        if (newAmountPaid > Number(subscription.totalAmount)) {
+            throw new Error('Payment exceeds remaining subscription balance');
+        }
+
         const result = await db.runAsync(
             `INSERT INTO payments (subscriptionId, amount, paymentDate, paymentMethod, notes) 
        VALUES (?, ?, ?, ?, ?)`,
-            [subscriptionId, amount, paymentDate, paymentMethod, notes]
+            [subscriptionId, parsedAmount, paymentDate, paymentMethod, notes]
         );
 
-        // Update amountPaid in subscription
-        const subscription = await getSubscriptionById(subscriptionId);
-        if (subscription) {
-            const newAmountPaid = subscription.amountPaid + amount;
-            await db.runAsync(
-                'UPDATE mess_subscriptions SET amountPaid = ? WHERE id = ?',
-                [newAmountPaid, subscriptionId]
-            );
-        }
+        await db.runAsync(
+            `UPDATE mess_subscriptions
+             SET amountPaid = ?, lastModified = CURRENT_TIMESTAMP
+             WHERE id = ?`,
+            [newAmountPaid, subscriptionId]
+        );
 
+        await db.execAsync('COMMIT;');
+        transactionStarted = false;
         return result.lastInsertRowId;
     } catch (error) {
+        if (db && transactionStarted) {
+            await db.execAsync('ROLLBACK;').catch(() => {});
+        }
         console.error('Error adding payment:', error);
         throw error;
     }
@@ -316,7 +367,7 @@ export const addPayment = async (subscriptionId, amount, paymentDate, paymentMet
 // Get all payments for a subscription
 export const getSubscriptionPayments = async (subscriptionId) => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getAllAsync(
             `SELECT * FROM payments WHERE subscriptionId = ? ORDER BY paymentDate DESC`,
             [subscriptionId]
@@ -334,7 +385,7 @@ export const getSubscriptionPayments = async (subscriptionId) => {
 export const getTotalActiveSubscriptions = async () => {
     try {
         await syncExpiredSubscriptions();
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getFirstAsync(
             `SELECT COUNT(*) as count FROM mess_subscriptions WHERE isActive = 1`
         );
@@ -348,7 +399,7 @@ export const getTotalActiveSubscriptions = async () => {
 // Get total revenue (all amountPaid)
 export const getTotalRevenue = async () => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getFirstAsync(
             `SELECT SUM(amountPaid) as total FROM mess_subscriptions`
         );
@@ -359,11 +410,11 @@ export const getTotalRevenue = async () => {
     }
 };
 
-// Get overdue subscriptions (active but with remaining balance)
-export const getOverduePayments = async () => {
+// Get subscriptions with pending balance.
+export const getPendingPayments = async () => {
     try {
         await syncExpiredSubscriptions();
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getAllAsync(`
       SELECT ms.*, c.name as clientName, c.phone,
              (ms.totalAmount - ms.amountPaid) as remainingAmount
@@ -374,16 +425,19 @@ export const getOverduePayments = async () => {
     `);
         return result;
     } catch (error) {
-        console.error('Error fetching overdue payments:', error);
+        console.error('Error fetching pending payments:', error);
         throw error;
     }
 };
+
+// Backward compatibility alias.
+export const getOverduePayments = getPendingPayments;
 
 // Get expiring soon (ending in next 7 days)
 export const getExpiringSoon = async () => {
     try {
         await syncExpiredSubscriptions();
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getAllAsync(`
       SELECT ms.*, c.name as clientName, c.phone
       FROM mess_subscriptions ms 
@@ -402,7 +456,7 @@ export const getExpiringSoon = async () => {
 // Get total clients count
 export const getTotalClientsCount = async () => {
     try {
-        const db = getDB();
+        const db = await getDBAsync();
         const result = await db.getFirstAsync('SELECT COUNT(*) as count FROM clients');
         return result?.count || 0;
     } catch (error) {

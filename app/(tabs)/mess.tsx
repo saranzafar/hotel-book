@@ -28,46 +28,15 @@ export default function MessScreen() {
     const [showEditDrawer, setShowEditDrawer] = useState(false);
     const [selectedSubscription, setSelectedSubscription] = useState(null);
 
-    useEffect(() => {
-        loadSubscriptions();
-    }, []);
-
-    useFocusEffect(
-        useCallback(() => {
-            loadSubscriptions();
-        }, [])
-    );
-
-    const loadSubscriptions = async () => {
-        try {
-            setLoading(true);
-            const data = await getAllSubscriptions();
-            setSubscriptions(data);
-            applyFilter(data, filterStatus, searchTerm);
-        } catch (error) {
-            console.error('Error loading subscriptions:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const onRefresh = async () => {
-        setRefreshing(true);
-        await loadSubscriptions();
-        setRefreshing(false);
-    };
-
-    const applyFilter = (data, status, search) => {
+    const applyFilter = useCallback((data, status, search) => {
         let filtered = data;
 
-        // Status filter
         if (status === 'active') {
-            filtered = filtered.filter((s) => s.isActive == 1);
+            filtered = filtered.filter((s) => s.isActive === 1);
         } else if (status === 'expired') {
-            filtered = filtered.filter((s) => s.isActive == 0);
+            filtered = filtered.filter((s) => s.isActive === 0);
         }
 
-        // Search
         if (search.trim() !== '') {
             filtered = filtered.filter((s) =>
                 s.clientName.toLowerCase().includes(search.toLowerCase())
@@ -75,21 +44,49 @@ export default function MessScreen() {
         }
 
         setFilteredSubscriptions(filtered);
+    }, []);
+
+    const loadSubscriptions = useCallback(async () => {
+        try {
+            setLoading(true);
+            const data = await getAllSubscriptions();
+            setSubscriptions(data);
+        } catch (error) {
+            console.error('Error loading subscriptions:', error);
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        loadSubscriptions();
+    }, [loadSubscriptions]);
+
+    useFocusEffect(
+        useCallback(() => {
+            loadSubscriptions();
+        }, [loadSubscriptions])
+    );
+
+    useEffect(() => {
+        applyFilter(subscriptions, filterStatus, searchTerm);
+    }, [subscriptions, filterStatus, searchTerm, applyFilter]);
+
+    const onRefresh = async () => {
+        setRefreshing(true);
+        await loadSubscriptions();
+        setRefreshing(false);
     };
 
     const handleSearch = (text) => {
         setSearchTerm(text);
-        applyFilter(subscriptions, filterStatus, text);
     };
 
     const handleFilterChange = (status) => {
         setFilterStatus(status);
-        applyFilter(subscriptions, status, searchTerm);
     };
 
     const renderSubscriptionCard = ({ item }) => {
-        const progress = (item.amountPaid / item.totalAmount) * 100;
-
         return (
             <TouchableOpacity
                 style={styles.card}

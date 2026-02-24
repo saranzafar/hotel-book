@@ -14,7 +14,7 @@ import StatCard from '@/app/components/dashboard/StatCard';
 
 import {
   getExpiringSoon,
-  getOverduePayments,
+  getPendingPayments,
   getTotalActiveSubscriptions,
   getTotalClientsCount,
   getTotalRevenue,
@@ -41,7 +41,7 @@ export default function HomeScreen() {
       const [active, revenue, overdue, expiring, clients] = await Promise.all([
         getTotalActiveSubscriptions(),
         getTotalRevenue(),
-        getOverduePayments(),
+        getPendingPayments(),
         getExpiringSoon(),
         getTotalClientsCount(),
       ]);
@@ -109,7 +109,7 @@ export default function HomeScreen() {
           color="#E53935"
         />
         <StatCard
-          label="Overdue Payments"
+          label="Pending Payments"
           value={stats.overdueCount}
           color="#E74C3C"
         />
@@ -140,7 +140,7 @@ export default function HomeScreen() {
         />
         <InfoCard
           icon="⚠️"
-          text={`${stats.overdueCount} subscriptions have pending payments.`}
+          text={`${stats.overdueCount} subscriptions have pending balances.`}
         />
         <InfoCard
           icon="⏰"

@@ -29,22 +29,35 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
 
     useEffect(() => {
         if (subscription) {
-            setStartDate(new Date(subscription.startDate));
-            setEndDate(new Date(subscription.endDate));
+            setStartDate(parseSqlDate(subscription.startDate));
+            setEndDate(parseSqlDate(subscription.endDate));
             setTotalAmount(subscription.totalAmount.toString());
             setAmountPaid(subscription.amountPaid.toString());
             setIsActive(subscription.isActive === 1);
         }
     }, [subscription, visible]);
 
+    const parseSqlDate = (dateValue) => {
+        if (!dateValue) return new Date();
+        const [year, month, day] = String(dateValue).split('-').map(Number);
+        if (!year || !month || !day) return new Date(dateValue);
+        return new Date(year, month - 1, day);
+    };
+
+    const normalizeDate = (date) => new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
     const calculateTotalDays = () => {
-        const diffTime = Math.abs(endDate - startDate);
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        return diffDays;
+        const start = normalizeDate(startDate);
+        const end = normalizeDate(endDate);
+        const diffTime = end.getTime() - start.getTime();
+        return Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
     };
 
     const formatDate = (date) => {
-        return date.toISOString().split('T')[0];
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     };
 
     const handleStartDateChange = (event, selectedDate) => {
@@ -70,12 +83,16 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
             Alert.alert('Error', 'Total amount must be a valid positive number');
             return false;
         }
-        if (amountPaid && isNaN(amountPaid)) {
-            Alert.alert('Error', 'Amount paid must be a valid number');
+        if (amountPaid && (isNaN(amountPaid) || parseFloat(amountPaid) < 0)) {
+            Alert.alert('Error', 'Amount paid must be a non-negative number');
             return false;
         }
-        if (endDate <= startDate) {
-            Alert.alert('Error', 'End date must be after start date');
+        if (amountPaid && parseFloat(amountPaid) > parseFloat(totalAmount)) {
+            Alert.alert('Error', 'Amount paid cannot be greater than total amount');
+            return false;
+        }
+        if (normalizeDate(endDate) < normalizeDate(startDate)) {
+            Alert.alert('Error', 'End date cannot be before start date');
             return false;
         }
         return true;
@@ -212,7 +229,7 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
                         </View>
 
                         {/* Total Days Display */}
-                        {endDate > startDate && (
+                        {normalizeDate(endDate) >= normalizeDate(startDate) && (
                             <View style={styles.daysDisplay}>
                                 <Ionicons name="timer" size={18} color="#E53935" />
                                 <Text style={styles.daysText}>Total Days: {calculateTotalDays()}</Text>
@@ -258,7 +275,7 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
                             <View style={styles.remainingDisplay}>
                                 <Text style={styles.remainingLabel}>Remaining Amount:</Text>
                                 <Text style={styles.remainingValue}>
-                                    ₹{(parseFloat(totalAmount) - (amountPaid ? parseFloat(amountPaid) : 0)).toFixed(2)}
+                                    ₹{((parseFloat(totalAmount) || 0) - (amountPaid ? (parseFloat(amountPaid) || 0) : 0)).toFixed(2)}
                                 </Text>
                             </View>
                         )}
