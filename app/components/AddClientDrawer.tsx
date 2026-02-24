@@ -199,7 +199,7 @@ export default function AddClientDrawer({ visible, onClose, onClientAdded }) {
                             {!loading && <Ionicons name="arrow-forward" size={20} color="#fff" />}
                         </TouchableOpacity>
                     </View>
-                </View>
+                    </View>
             </KeyboardAvoidingView>
         </Modal>
     );

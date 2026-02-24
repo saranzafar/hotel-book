@@ -81,7 +81,7 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
             showSuccess('Plan updated');
             onClose();
             onSubscriptionUpdated();
-        } catch (error) {
+        } catch {
             showError('Failed to update');
         } finally {
             setLoading(false);
@@ -101,7 +101,7 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
                         showSuccess('Subscription deleted');
                         onClose();
                         onSubscriptionUpdated();
-                    } catch (error) { showError('Failed to delete'); }
+                    } catch { showError('Failed to delete'); }
                     finally { setLoading(false); }
                 }
             }
@@ -209,7 +209,7 @@ export default function EditSubscriptionDrawer({ visible, onClose, subscription,
 
                     {showStartDatePicker && <DateTimePicker value={startDate} mode="date" onChange={(e, d) => { setShowStartDatePicker(false); if (d) setStartDate(d); }} />}
                     {showEndDatePicker && <DateTimePicker value={endDate} mode="date" onChange={(e, d) => { setShowEndDatePicker(false); if (d) setEndDate(d); }} />}
-                </View>
+                    </View>
             </KeyboardAvoidingView>
         </Modal>
     );

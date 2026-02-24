@@ -31,7 +31,6 @@ export default function AddSubscriptionDrawer({ visible, onClose, onSubscription
     const [amountPaid, setAmountPaid] = useState('');
 
     const [loading, setLoading] = useState(false);
-    const [loadingClients, setLoadingClients] = useState(false);
 
     useEffect(() => {
         if (visible) loadClients();
@@ -39,13 +38,10 @@ export default function AddSubscriptionDrawer({ visible, onClose, onSubscription
 
     const loadClients = async () => {
         try {
-            setLoadingClients(true);
             const data = await getAllClients();
             setClients(data);
         } catch {
             showError('Failed to load clients');
-        } finally {
-            setLoadingClients(false);
         }
     };
 
@@ -265,7 +261,7 @@ export default function AddSubscriptionDrawer({ visible, onClose, onSubscription
 
                     {showStartDatePicker && <DateTimePicker value={startDate} mode="date" onChange={handleStartDateChange} />}
                     {showEndDatePicker && <DateTimePicker value={endDate} mode="date" onChange={handleEndDateChange} />}
-                </View>
+                    </View>
             </KeyboardAvoidingView>
         </Modal>
     );

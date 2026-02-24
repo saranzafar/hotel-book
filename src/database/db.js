@@ -3,7 +3,7 @@ import * as SQLite from 'expo-sqlite';
 
 let db = null;
 let initPromise = null;
-const TARGET_SCHEMA_VERSION = 1;
+const TARGET_SCHEMA_VERSION = 2;
 
 // Initialize database
 export const initDB = async () => {
@@ -36,6 +36,7 @@ export const initDB = async () => {
 
 const migrateSchema = async () => {
     await createTables();
+    await ensureHistorySchema();
     await createIndexes();
 
     const needsMigration = await schemaNeedsMigration();
@@ -76,6 +77,7 @@ const createTables = async () => {
         totalAmount REAL NOT NULL CHECK(totalAmount > 0),
         amountPaid REAL NOT NULL DEFAULT 0 CHECK(amountPaid >= 0 AND amountPaid <= totalAmount),
         isActive INTEGER NOT NULL DEFAULT 1 CHECK(isActive IN (0, 1)),
+        historyLogged INTEGER NOT NULL DEFAULT 0 CHECK(historyLogged IN (0, 1)),
         createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         lastModified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         notes TEXT,
@@ -98,9 +100,62 @@ const createTables = async () => {
       );
     `);
         console.log('✅ Payments table created');
+
+        await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS subscription_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subscriptionId INTEGER NOT NULL,
+        clientId INTEGER NOT NULL,
+        startDate TEXT NOT NULL,
+        endDate TEXT NOT NULL,
+        totalDays INTEGER NOT NULL,
+        planType TEXT,
+        totalAmount REAL NOT NULL,
+        amountPaid REAL NOT NULL,
+        eventType TEXT NOT NULL,
+        eventReason TEXT,
+        eventAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        notes TEXT,
+        FOREIGN KEY(subscriptionId) REFERENCES mess_subscriptions(id) ON DELETE CASCADE,
+        FOREIGN KEY(clientId) REFERENCES clients(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS payment_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        subscriptionId INTEGER NOT NULL,
+        clientId INTEGER NOT NULL,
+        amount REAL NOT NULL CHECK(amount > 0),
+        paymentDate TEXT NOT NULL,
+        paymentMethod TEXT,
+        notes TEXT,
+        amountPaidBefore REAL NOT NULL DEFAULT 0,
+        amountPaidAfter REAL NOT NULL DEFAULT 0,
+        remainingAfter REAL NOT NULL DEFAULT 0,
+        totalAmountSnapshot REAL NOT NULL DEFAULT 0,
+        createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(subscriptionId) REFERENCES mess_subscriptions(id) ON DELETE CASCADE,
+        FOREIGN KEY(clientId) REFERENCES clients(id) ON DELETE CASCADE
+      );
+    `);
+        console.log('✅ History tables created');
     } catch (error) {
         console.error('❌ Error creating tables:', error);
         throw error;
+    }
+};
+
+const getTableColumns = async (tableName) => {
+    const columns = await db.getAllAsync(`PRAGMA table_info(${tableName})`);
+    return columns.map((column) => String(column.name));
+};
+
+const ensureHistorySchema = async () => {
+    const messColumns = await getTableColumns('mess_subscriptions');
+    if (!messColumns.includes('historyLogged')) {
+        await db.execAsync(`
+          ALTER TABLE mess_subscriptions
+          ADD COLUMN historyLogged INTEGER NOT NULL DEFAULT 0 CHECK(historyLogged IN (0, 1));
+        `);
     }
 };
 
@@ -109,7 +164,16 @@ const createIndexes = async () => {
       CREATE INDEX IF NOT EXISTS idx_mess_subscriptions_clientId ON mess_subscriptions(clientId);
       CREATE INDEX IF NOT EXISTS idx_mess_subscriptions_endDate ON mess_subscriptions(endDate);
       CREATE INDEX IF NOT EXISTS idx_mess_subscriptions_isActive ON mess_subscriptions(isActive);
+      CREATE INDEX IF NOT EXISTS idx_mess_subscriptions_historyLogged ON mess_subscriptions(historyLogged);
       CREATE INDEX IF NOT EXISTS idx_payments_subscriptionId ON payments(subscriptionId);
+      CREATE INDEX IF NOT EXISTS idx_subscription_history_subscriptionId ON subscription_history(subscriptionId);
+      CREATE INDEX IF NOT EXISTS idx_subscription_history_clientId ON subscription_history(clientId);
+      CREATE INDEX IF NOT EXISTS idx_subscription_history_eventAt ON subscription_history(eventAt DESC);
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_subscription_history_unique_event
+      ON subscription_history(subscriptionId, startDate, endDate, eventType);
+      CREATE INDEX IF NOT EXISTS idx_payment_history_subscriptionId ON payment_history(subscriptionId);
+      CREATE INDEX IF NOT EXISTS idx_payment_history_clientId ON payment_history(clientId);
+      CREATE INDEX IF NOT EXISTS idx_payment_history_createdAt ON payment_history(createdAt DESC);
     `);
 };
 
@@ -164,6 +228,7 @@ const rebuildTablesWithConstraints = async () => {
             totalAmount REAL NOT NULL CHECK(totalAmount > 0),
             amountPaid REAL NOT NULL DEFAULT 0 CHECK(amountPaid >= 0 AND amountPaid <= totalAmount),
             isActive INTEGER NOT NULL DEFAULT 1 CHECK(isActive IN (0, 1)),
+            historyLogged INTEGER NOT NULL DEFAULT 0 CHECK(historyLogged IN (0, 1)),
             createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             lastModified TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             notes TEXT,

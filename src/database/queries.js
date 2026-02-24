@@ -1,5 +1,6 @@
 // src/database/queries.js
 import { getDBAsync } from './db';
+let syncExpiredPromise = null;
 
 const getTodayLocalDateString = () => {
     const now = new Date();
@@ -8,16 +9,85 @@ const getTodayLocalDateString = () => {
         .split('T')[0];
 };
 
+const mapQueryError = (error, fallbackMessage) => {
+    if (error instanceof Error && error.message) {
+        return new Error(error.message);
+    }
+    return new Error(fallbackMessage);
+};
+
+const insertSubscriptionHistorySnapshot = async (
+    db,
+    subscription,
+    eventType,
+    eventReason = '',
+    notes = ''
+) => {
+    await db.runAsync(
+        `INSERT OR IGNORE INTO subscription_history
+       (subscriptionId, clientId, startDate, endDate, totalDays, planType, totalAmount, amountPaid, eventType, eventReason, notes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+            subscription.id,
+            subscription.clientId,
+            subscription.startDate,
+            subscription.endDate,
+            subscription.totalDays,
+            subscription.planType || 'custom',
+            subscription.totalAmount,
+            subscription.amountPaid,
+            eventType,
+            eventReason,
+            notes || '',
+        ]
+    );
+};
+
 // Auto-expire subscriptions whose end date has passed.
 const syncExpiredSubscriptions = async () => {
-    const db = await getDBAsync();
-    await db.runAsync(
-        `UPDATE mess_subscriptions
-         SET isActive = 0,
-             lastModified = CURRENT_TIMESTAMP
-         WHERE isActive = 1
-           AND date(endDate) < date('now', 'localtime')`
-    );
+    if (syncExpiredPromise) {
+        return syncExpiredPromise;
+    }
+
+    syncExpiredPromise = (async () => {
+        const db = await getDBAsync();
+        try {
+            await db.runAsync(
+                `INSERT OR IGNORE INTO subscription_history
+             (subscriptionId, clientId, startDate, endDate, totalDays, planType, totalAmount, amountPaid, eventType, eventReason, notes)
+             SELECT
+               ms.id,
+               ms.clientId,
+               ms.startDate,
+               ms.endDate,
+               ms.totalDays,
+               COALESCE(ms.planType, 'custom'),
+               ms.totalAmount,
+               ms.amountPaid,
+               'expired',
+               'Subscription period ended',
+               COALESCE(ms.notes, '')
+             FROM mess_subscriptions ms
+             WHERE ms.isActive = 1
+               AND date(ms.endDate) < date('now', 'localtime')`
+            );
+
+            await db.runAsync(
+                `UPDATE mess_subscriptions
+               SET isActive = 0,
+                   historyLogged = 1,
+                   lastModified = CURRENT_TIMESTAMP
+               WHERE isActive = 1
+                 AND date(endDate) < date('now', 'localtime')`
+            );
+        } catch (error) {
+            throw mapQueryError(error, 'Failed to sync expired subscriptions');
+        } finally {
+            syncExpiredPromise = null;
+        }
+    })();
+
+    return syncExpiredPromise;
 };
 
 // ==================== CLIENTS QUERIES ====================
@@ -34,7 +104,7 @@ export const addClient = async (name, phone, email = '', address = '', notes = '
         return result.lastInsertRowId;
     } catch (error) {
         console.error('Error adding client:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to add client');
     }
 };
 
@@ -46,7 +116,7 @@ export const getAllClients = async () => {
         return result;
     } catch (error) {
         console.error('Error fetching clients:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch clients');
     }
 };
 
@@ -63,7 +133,7 @@ export const searchClients = async (searchTerm) => {
         return result;
     } catch (error) {
         console.error('Error searching clients:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to search clients');
     }
 };
 
@@ -78,7 +148,7 @@ export const getClientById = async (clientId) => {
         return result || null;
     } catch (error) {
         console.error('Error fetching client:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch client details');
     }
 };
 
@@ -94,7 +164,7 @@ export const updateClient = async (clientId, name, phone, email, address, notes)
         );
     } catch (error) {
         console.error('Error updating client:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to update client');
     }
 };
 
@@ -105,7 +175,7 @@ export const deleteClient = async (clientId) => {
         await db.runAsync('DELETE FROM clients WHERE id = ?', [clientId]);
     } catch (error) {
         console.error('Error deleting client:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to delete client');
     }
 };
 
@@ -159,7 +229,7 @@ export const addSubscription = async (
         return result.lastInsertRowId;
     } catch (error) {
         console.error('Error adding subscription:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to add subscription');
     }
 };
 
@@ -177,7 +247,7 @@ export const getAllSubscriptions = async () => {
         return result;
     } catch (error) {
         console.error('Error fetching subscriptions:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch subscriptions');
     }
 };
 
@@ -196,7 +266,7 @@ export const getActiveSubscriptions = async () => {
         return result;
     } catch (error) {
         console.error('Error fetching active subscriptions:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch active subscriptions');
     }
 };
 
@@ -216,7 +286,7 @@ export const searchSubscriptions = async (searchTerm) => {
         return result;
     } catch (error) {
         console.error('Error searching subscriptions:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to search subscriptions');
     }
 };
 
@@ -235,7 +305,7 @@ export const getSubscriptionById = async (subscriptionId) => {
         return result || null;
     } catch (error) {
         console.error('Error fetching subscription:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch subscription details');
     }
 };
 
@@ -253,7 +323,7 @@ export const getClientSubscriptions = async (clientId) => {
         return result;
     } catch (error) {
         console.error('Error fetching client subscriptions:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch client subscriptions');
     }
 };
 
@@ -269,8 +339,10 @@ export const updateSubscription = async (
     planType,
     notes
 ) => {
+    let db;
+    let transactionStarted = false;
     try {
-        const db = await getDBAsync();
+        db = await getDBAsync();
         if (Number(totalAmount) <= 0) {
             throw new Error('Total amount must be greater than 0');
         }
@@ -284,18 +356,93 @@ export const updateSubscription = async (
             throw new Error('End date cannot be before start date');
         }
 
+        await db.execAsync('BEGIN IMMEDIATE TRANSACTION;');
+        transactionStarted = true;
+
+        const currentSubscription = await db.getFirstAsync(
+            `SELECT * FROM mess_subscriptions WHERE id = ?`,
+            [subscriptionId]
+        );
+        if (!currentSubscription) {
+            throw new Error('Subscription not found');
+        }
+
+        const isRenewal =
+            currentSubscription.startDate !== startDate ||
+            currentSubscription.endDate !== endDate;
+        if (isRenewal) {
+            await insertSubscriptionHistorySnapshot(
+                db,
+                currentSubscription,
+                'renewed',
+                'Subscription renewed with a new date range',
+                currentSubscription.notes || ''
+            );
+        }
+
         const today = getTodayLocalDateString();
         const safeIsActive = endDate < today ? 0 : isActive;
         await db.runAsync(
             `UPDATE mess_subscriptions 
        SET startDate = ?, endDate = ?, totalDays = ?, totalAmount = ?, 
-           amountPaid = ?, isActive = ?, planType = ?, notes = ?, lastModified = CURRENT_TIMESTAMP
+           amountPaid = ?, isActive = ?, planType = ?, notes = ?, historyLogged = ?, lastModified = CURRENT_TIMESTAMP
        WHERE id = ?`,
-            [startDate, endDate, totalDays, totalAmount, amountPaid, safeIsActive, planType, notes, subscriptionId]
+            [
+                startDate,
+                endDate,
+                totalDays,
+                totalAmount,
+                amountPaid,
+                safeIsActive,
+                planType,
+                notes,
+                safeIsActive === 0 ? 1 : 0,
+                subscriptionId,
+            ]
         );
+
+        const previousPaid = Number(currentSubscription.amountPaid);
+        const nextPaid = Number(amountPaid);
+        let paymentDelta = 0;
+        let amountPaidBefore = previousPaid;
+
+        if (isRenewal) {
+            paymentDelta = nextPaid > 0 ? nextPaid : 0;
+            amountPaidBefore = 0;
+        } else if (nextPaid > previousPaid) {
+            paymentDelta = nextPaid - previousPaid;
+        }
+
+        if (paymentDelta > 0) {
+            await db.runAsync(
+                `INSERT INTO payment_history
+               (subscriptionId, clientId, amount, paymentDate, paymentMethod, notes, amountPaidBefore, amountPaidAfter, remainingAfter, totalAmountSnapshot)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [
+                    subscriptionId,
+                    currentSubscription.clientId,
+                    paymentDelta,
+                    getTodayLocalDateString(),
+                    'manual-adjustment',
+                    isRenewal
+                        ? 'Opening paid amount captured at renewal'
+                        : 'Paid amount increased from subscription update',
+                    amountPaidBefore,
+                    nextPaid,
+                    Number(totalAmount) - nextPaid,
+                    Number(totalAmount),
+                ]
+            );
+        }
+
+        await db.execAsync('COMMIT;');
+        transactionStarted = false;
     } catch (error) {
+        if (db && transactionStarted) {
+            await db.execAsync('ROLLBACK;').catch(() => {});
+        }
         console.error('Error updating subscription:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to update subscription');
     }
 };
 
@@ -306,7 +453,7 @@ export const deleteSubscription = async (subscriptionId) => {
         await db.runAsync('DELETE FROM mess_subscriptions WHERE id = ?', [subscriptionId]);
     } catch (error) {
         console.error('Error deleting subscription:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to delete subscription');
     }
 };
 
@@ -326,7 +473,7 @@ export const addPayment = async (subscriptionId, amount, paymentDate, paymentMet
         await db.execAsync('BEGIN IMMEDIATE TRANSACTION;');
         transactionStarted = true;
         const subscription = await db.getFirstAsync(
-            `SELECT id, amountPaid, totalAmount FROM mess_subscriptions WHERE id = ?`,
+            `SELECT id, clientId, amountPaid, totalAmount FROM mess_subscriptions WHERE id = ?`,
             [subscriptionId]
         );
 
@@ -352,6 +499,24 @@ export const addPayment = async (subscriptionId, amount, paymentDate, paymentMet
             [newAmountPaid, subscriptionId]
         );
 
+        await db.runAsync(
+            `INSERT INTO payment_history
+           (subscriptionId, clientId, amount, paymentDate, paymentMethod, notes, amountPaidBefore, amountPaidAfter, remainingAfter, totalAmountSnapshot)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+                subscriptionId,
+                subscription.clientId,
+                parsedAmount,
+                paymentDate,
+                paymentMethod,
+                notes,
+                Number(subscription.amountPaid),
+                newAmountPaid,
+                Number(subscription.totalAmount) - newAmountPaid,
+                Number(subscription.totalAmount),
+            ]
+        );
+
         await db.execAsync('COMMIT;');
         transactionStarted = false;
         return result.lastInsertRowId;
@@ -360,7 +525,7 @@ export const addPayment = async (subscriptionId, amount, paymentDate, paymentMet
             await db.execAsync('ROLLBACK;').catch(() => {});
         }
         console.error('Error adding payment:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to add payment');
     }
 };
 
@@ -375,7 +540,7 @@ export const getSubscriptionPayments = async (subscriptionId) => {
         return result;
     } catch (error) {
         console.error('Error fetching payments:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch payments');
     }
 };
 
@@ -392,7 +557,7 @@ export const getTotalActiveSubscriptions = async () => {
         return result?.count || 0;
     } catch (error) {
         console.error('Error fetching active subscriptions count:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch active subscriptions count');
     }
 };
 
@@ -406,7 +571,7 @@ export const getTotalRevenue = async () => {
         return result?.total || 0;
     } catch (error) {
         console.error('Error fetching total revenue:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch total revenue');
     }
 };
 
@@ -426,7 +591,7 @@ export const getPendingPayments = async () => {
         return result;
     } catch (error) {
         console.error('Error fetching pending payments:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch pending payments');
     }
 };
 
@@ -449,7 +614,7 @@ export const getExpiringSoon = async () => {
         return result;
     } catch (error) {
         console.error('Error fetching expiring subscriptions:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch expiring subscriptions');
     }
 };
 
@@ -461,6 +626,64 @@ export const getTotalClientsCount = async () => {
         return result?.count || 0;
     } catch (error) {
         console.error('Error fetching clients count:', error);
-        throw error;
+        throw mapQueryError(error, 'Failed to fetch clients count');
+    }
+};
+
+export const getSubscriptionHistoryPage = async (subscriptionId, page = 1, pageSize = 15) => {
+    try {
+        const db = await getDBAsync();
+        const safePage = Math.max(1, Number(page) || 1);
+        const safePageSize = Math.max(1, Math.min(50, Number(pageSize) || 15));
+        const offset = (safePage - 1) * safePageSize;
+
+        const rows = await db.getAllAsync(
+            `SELECT sh.*, c.name AS clientName
+           FROM subscription_history sh
+           JOIN clients c ON c.id = sh.clientId
+           WHERE sh.subscriptionId = ?
+           ORDER BY datetime(sh.eventAt) DESC, sh.id DESC
+           LIMIT ? OFFSET ?`,
+            [subscriptionId, safePageSize, offset]
+        );
+
+        return {
+            items: rows,
+            page: safePage,
+            pageSize: safePageSize,
+            hasMore: rows.length === safePageSize,
+        };
+    } catch (error) {
+        console.error('Error fetching subscription history:', error);
+        throw mapQueryError(error, 'Failed to fetch subscription history');
+    }
+};
+
+export const getPaymentHistoryPage = async (subscriptionId, page = 1, pageSize = 15) => {
+    try {
+        const db = await getDBAsync();
+        const safePage = Math.max(1, Number(page) || 1);
+        const safePageSize = Math.max(1, Math.min(50, Number(pageSize) || 15));
+        const offset = (safePage - 1) * safePageSize;
+
+        const rows = await db.getAllAsync(
+            `SELECT ph.*, c.name AS clientName
+           FROM payment_history ph
+           JOIN clients c ON c.id = ph.clientId
+           WHERE ph.subscriptionId = ?
+           ORDER BY datetime(ph.createdAt) DESC, ph.id DESC
+           LIMIT ? OFFSET ?`,
+            [subscriptionId, safePageSize, offset]
+        );
+
+        return {
+            items: rows,
+            page: safePage,
+            pageSize: safePageSize,
+            hasMore: rows.length === safePageSize,
+        };
+    } catch (error) {
+        console.error('Error fetching payment history:', error);
+        throw mapQueryError(error, 'Failed to fetch payment history');
     }
 };

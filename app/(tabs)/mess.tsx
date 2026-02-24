@@ -19,6 +19,7 @@ import { getAllSubscriptions } from '../../src/database/queries';
 import { showError } from '../../src/ui/toast.js';
 import AddSubscriptionDrawer from '../components/AddSubscriptionDrawer';
 import EditSubscriptionDrawer from '../components/EditSubscriptionDrawer';
+import SubscriptionHistoryDrawer from '../components/SubscriptionHistoryDrawer';
 
 export default function MessScreen() {
     const [loading, setLoading] = useState(true);
@@ -30,6 +31,7 @@ export default function MessScreen() {
 
     const [showAddDrawer, setShowAddDrawer] = useState(false);
     const [showEditDrawer, setShowEditDrawer] = useState(false);
+    const [showHistoryDrawer, setShowHistoryDrawer] = useState(false);
     const [selectedSubscription, setSelectedSubscription] = useState(null);
 
     const applyFilter = useCallback((data, status, search) => {
@@ -50,7 +52,7 @@ export default function MessScreen() {
             setLoading(true);
             const data = await getAllSubscriptions();
             setSubscriptions(data);
-        } catch (error) {
+        } catch {
             showError('Failed to sync plans');
         } finally {
             setLoading(false);
@@ -92,10 +94,22 @@ export default function MessScreen() {
                             <Text style={styles.dateRangeText}>{item.startDate} to {item.endDate}</Text>
                         </View>
                     </View>
-                    <View style={[styles.statusPill, isActive ? styles.pillActive : styles.pillExpired]}>
-                        <Text style={[styles.statusText, isActive ? styles.textActive : styles.textExpired]}>
-                            {isActive ? 'ACTIVE' : 'EXPIRED'}
-                        </Text>
+                    <View style={styles.headerActions}>
+                        <TouchableOpacity
+                            style={styles.historyIconBtn}
+                            onPress={(event) => {
+                                event?.stopPropagation?.();
+                                setSelectedSubscription(item);
+                                setShowHistoryDrawer(true);
+                            }}
+                        >
+                            <Ionicons name="time-outline" size={16} color="#E53935" />
+                        </TouchableOpacity>
+                        <View style={[styles.statusPill, isActive ? styles.pillActive : styles.pillExpired]}>
+                            <Text style={[styles.statusText, isActive ? styles.textActive : styles.textExpired]}>
+                                {isActive ? 'ACTIVE' : 'EXPIRED'}
+                            </Text>
+                        </View>
                     </View>
                 </View>
 
@@ -192,6 +206,11 @@ export default function MessScreen() {
 
             <AddSubscriptionDrawer visible={showAddDrawer} onClose={() => setShowAddDrawer(false)} onSubscriptionAdded={loadSubscriptions} />
             <EditSubscriptionDrawer visible={showEditDrawer} onClose={() => setShowEditDrawer(false)} subscription={selectedSubscription} onSubscriptionUpdated={loadSubscriptions} />
+            <SubscriptionHistoryDrawer
+                visible={showHistoryDrawer}
+                onClose={() => setShowHistoryDrawer(false)}
+                subscription={selectedSubscription}
+            />
         </View>
     );
 }
@@ -236,6 +255,15 @@ const styles = StyleSheet.create({
         shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.03, shadowRadius: 10, elevation: 2,
     },
     cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 16 },
+    headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+    historyIconBtn: {
+        width: 28,
+        height: 28,
+        borderRadius: 14,
+        backgroundColor: '#FDECEB',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
     clientName: { fontSize: 18, fontWeight: '800', color: '#1C1C1E', marginBottom: 4 },
     dateBadge: { flexDirection: 'row', alignItems: 'center', gap: 4 },
     dateRangeText: { fontSize: 12, color: '#8E8E93', fontWeight: '500' },

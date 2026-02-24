@@ -230,7 +230,7 @@ export default function EditClientDrawer({ visible, onClose, client, onClientUpd
                             {!loading && <Ionicons name="checkmark" size={22} color="#fff" />}
                         </TouchableOpacity>
                     </View>
-                </View>
+                    </View>
             </KeyboardAvoidingView>
         </Modal>
     );

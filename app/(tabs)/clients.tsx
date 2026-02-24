@@ -36,7 +36,7 @@ export default function ClientsScreen() {
             const data = await getAllClients();
             setClients(data);
             setFilteredClients(data);
-        } catch (error) {
+        } catch {
             showError('Failed to load clients');
         } finally {
             setLoading(false);
