@@ -781,3 +781,140 @@ export const getDashboardRevenueTrend = async (months = 6) => {
         throw mapQueryError(error, 'Failed to fetch dashboard revenue trend');
     }
 };
+
+// ==================== REVENUE BY DATE RANGE QUERIES ====================
+
+// Get revenue for today
+export const getRevenueToday = async () => {
+    try {
+        const db = await getDBAsync();
+        const result = await db.getFirstAsync(
+            `SELECT COALESCE(SUM(amount), 0) as total FROM payment_history WHERE date(paymentDate) = date('now', 'localtime')`
+        );
+        return Number(result?.total || 0);
+    } catch (error) {
+        console.error('Error fetching today revenue:', error);
+        throw mapQueryError(error, 'Failed to fetch today revenue');
+    }
+};
+
+// Get revenue for this week (current week from Monday to today)
+export const getRevenueThisWeek = async () => {
+    try {
+        const db = await getDBAsync();
+        const result = await db.getFirstAsync(
+            `SELECT COALESCE(SUM(amount), 0) as total FROM payment_history 
+             WHERE date(paymentDate) >= date('now', 'weekday 0', '-6 days', 'localtime') 
+             AND date(paymentDate) <= date('now', 'localtime')`
+        );
+        return Number(result?.total || 0);
+    } catch (error) {
+        console.error('Error fetching week revenue:', error);
+        throw mapQueryError(error, 'Failed to fetch week revenue');
+    }
+};
+
+// Get revenue for this month (already exists in getDashboardSnapshot as revenueThisMonth)
+export const getRevenueThisMonth = async () => {
+    try {
+        const db = await getDBAsync();
+        const result = await db.getFirstAsync(
+            `SELECT COALESCE(SUM(amount), 0) as total FROM payment_history 
+             WHERE date(paymentDate) BETWEEN date('now', 'start of month', 'localtime') AND date('now', 'localtime')`
+        );
+        return Number(result?.total || 0);
+    } catch (error) {
+        console.error('Error fetching month revenue:', error);
+        throw mapQueryError(error, 'Failed to fetch month revenue');
+    }
+};
+
+// Get revenue for custom date range
+export const getRevenueByDateRange = async (startDate, endDate) => {
+    try {
+        const db = await getDBAsync();
+        const result = await db.getFirstAsync(
+            `SELECT COALESCE(SUM(amount), 0) as total FROM payment_history 
+             WHERE date(paymentDate) >= date(?) AND date(paymentDate) <= date(?)`,
+            [startDate, endDate]
+        );
+        return Number(result?.total || 0);
+    } catch (error) {
+        console.error('Error fetching revenue by date range:', error);
+        throw mapQueryError(error, 'Failed to fetch revenue by date range');
+    }
+};
+
+// Get revenue trend for custom number of months
+export const getRevenueTrendCustom = async (months = 1) => {
+    try {
+        const db = await getDBAsync();
+        const windowSize = Math.max(1, Math.min(12, Number(months) || 1));
+        
+        const rows = await db.getAllAsync(
+            `SELECT
+               strftime('%Y-%m', paymentDate) AS monthKey,
+               COALESCE(SUM(amount), 0) AS total
+             FROM payment_history
+             WHERE date(paymentDate) >= date('now', 'start of month', ?, 'localtime')
+             GROUP BY monthKey
+             ORDER BY monthKey ASC`,
+            [`-${windowSize - 1} months`]
+        );
+
+        const monthMap = new Map(rows.map((row) => [row.monthKey, Number(row.total || 0)]));
+        const series = [];
+        const now = new Date();
+        for (let i = windowSize - 1; i >= 0; i -= 1) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+            series.push({
+                monthKey: key,
+                monthLabel: formatMonthLabel(key),
+                total: monthMap.get(key) || 0,
+            });
+        }
+
+        const peak = Math.max(...series.map((item) => item.total), 0);
+        const previousPeriod = series.length > 1 ? series.slice(0, -1).reduce((sum, item) => sum + item.total, 0) : 0;
+        const currentPeriod = series.reduce((sum, item) => sum + item.total, 0);
+        const changePercent = previousPeriod > 0 ? ((currentPeriod - previousPeriod) / previousPeriod) * 100 : 0;
+
+        return {
+            series,
+            peak,
+            currentPeriod,
+            previousPeriod,
+            changePercent: Number(changePercent.toFixed(1)),
+            totalRevenue: currentPeriod,
+        };
+    } catch (error) {
+        console.error('Error fetching custom revenue trend:', error);
+        throw mapQueryError(error, 'Failed to fetch custom revenue trend');
+    }
+};
+
+// Get daily revenue for a specific month
+export const getDailyRevenueForMonth = async (year, month) => {
+    try {
+        const db = await getDBAsync();
+        const monthStr = String(month).padStart(2, '0');
+        const result = await db.getAllAsync(
+            `SELECT 
+               date(paymentDate) as date,
+               COALESCE(SUM(amount), 0) as total
+             FROM payment_history
+             WHERE strftime('%Y-%m', paymentDate) = ?
+             GROUP BY date(paymentDate)
+             ORDER BY date ASC`,
+            [`${year}-${monthStr}`]
+        );
+        return result.map(row => ({
+            date: row.date,
+            total: Number(row.total || 0),
+        }));
+    } catch (error) {
+        console.error('Error fetching daily revenue:', error);
+        throw mapQueryError(error, 'Failed to fetch daily revenue');
+    }
+};

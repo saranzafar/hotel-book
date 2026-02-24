@@ -1,4 +1,4 @@
-// app/(tabs)/index.js (Dashboard) — Updated Compact Stat Cards
+// app/(tabs)/index.js (Dashboard) — Fixed Version
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -15,13 +15,39 @@ import {
   View
 } from 'react-native';
 import {
-  getDashboardRevenueTrend,
   getDashboardSnapshot,
+  getRevenueThisMonth,
+  getRevenueThisWeek,
+  getRevenueToday,
+  getRevenueTrendCustom,
 } from '../../src/database/queries';
 import { showError } from '../../src/ui/toast.js';
 
 const { width } = Dimensions.get('window');
 const STATUS_BAR_HEIGHT = Platform.OS === 'ios' ? 47 : StatusBar.currentHeight || 0;
+
+// Filter types - using regular JavaScript
+const FILTER_OPTIONS = [
+  { key: 'today', label: 'Today' },
+  { key: 'week', label: 'Week' },
+  { key: 'month', label: 'Month' },
+  { key: '6months', label: '6 Months' },
+];
+
+// Get months count from filter type
+const getMonthsFromFilter = (filter) => {
+  switch (filter) {
+    case 'today':
+    case 'week':
+      return 1;
+    case 'month':
+      return 1;
+    case '6months':
+      return 6;
+    default:
+      return 1;
+  }
+};
 
 // ─── Formatters ────────────────────────────────────────────────────────────────
 const pkr = (value) =>
@@ -83,30 +109,58 @@ const CompactStatCard = ({ title, value, icon, color = '#E53935', delay = 0 }) =
 };
 
 // ─── Revenue Chart ──────────────────────────────────────────────────────────
-const RevenueChart = ({ data, peak }) => {
+const RevenueChart = ({ data, peak, subtitle }) => {
   const safePeak = peak > 0 ? peak : 1;
-  const animValues = useRef(data.map(() => new Animated.Value(0))).current;
+  const animValues = useRef([]);
+  
+  // Update animValues when data changes
+  useEffect(() => {
+    if (data && data.length > 0) {
+      animValues.current = data.map(() => new Animated.Value(0));
+    } else {
+      animValues.current = [];
+    }
+  }, [data]);
 
   useEffect(() => {
-    Animated.stagger(
-      80,
-      data.map((_, i) =>
-        Animated.timing(animValues[i], {
-          toValue: 1,
-          duration: 600,
-          delay: i * 80,
-          useNativeDriver: false,
-        })
-      )
-    ).start();
+    if (data && data.length > 0 && animValues.current.length > 0) {
+      Animated.stagger(
+        80,
+        data.map((_, i) =>
+          Animated.timing(animValues.current[i], {
+            toValue: 1,
+            duration: 600,
+            delay: i * 80,
+            useNativeDriver: false,
+          })
+        )
+      ).start();
+    }
   }, [data]);
+
+  // Handle empty data case
+  if (!data || data.length === 0) {
+    return (
+      <View style={styles.chartCard}>
+        <View style={styles.chartHeader}>
+          <View>
+            <Text style={styles.chartTitle}>Revenue Trend</Text>
+            <Text style={styles.chartSubtitle}>{subtitle}</Text>
+          </View>
+        </View>
+        <View style={[styles.chartContainer, { justifyContent: 'center', alignItems: 'center' }]}>
+          <Text style={{ color: '#64748B', fontSize: 14 }}>No revenue data available</Text>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.chartCard}>
       <View style={styles.chartHeader}>
         <View>
           <Text style={styles.chartTitle}>Revenue Trend</Text>
-          <Text style={styles.chartSubtitle}>Last 6 months</Text>
+          <Text style={styles.chartSubtitle}>{subtitle}</Text>
         </View>
       </View>
 
@@ -123,10 +177,10 @@ const RevenueChart = ({ data, peak }) => {
           {data.map((item, index) => {
             const isCurrent = index === data.length - 1;
             const targetHeight = Math.max(4, (item.total / safePeak) * 140);
-            const animatedHeight = animValues[index].interpolate({
+            const animatedHeight = animValues.current[index]?.interpolate({
               inputRange: [0, 1],
               outputRange: [0, targetHeight],
-            });
+            }) || 0;
 
             return (
               <View key={item.monthKey} style={styles.chartBarColumn}>
@@ -134,7 +188,7 @@ const RevenueChart = ({ data, peak }) => {
                   style={[
                     styles.chartBar,
                     {
-                      height: animatedHeight,
+                      height: animatedHeight || 4,
                       backgroundColor: isCurrent ? '#E53935' : '#E2E8F0',
                     },
                   ]}
@@ -160,9 +214,16 @@ const RevenueChart = ({ data, peak }) => {
 export default function HomeScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [selectedFilter, setSelectedFilter] = useState('month');
+  const [filteredRevenue, setFilteredRevenue] = useState(0);
   const [snapshot, setSnapshot] = useState(null);
   const [trend, setTrend] = useState({
-    series: [], peak: 0, currentMonth: 0, previousMonth: 0, changePercent: 0,
+    series: [],
+    peak: 0,
+    currentPeriod: 0,
+    previousPeriod: 0,
+    changePercent: 0,
+    totalRevenue: 0
   });
 
   const scrollY = useRef(new Animated.Value(0)).current;
@@ -173,20 +234,104 @@ export default function HomeScreen() {
     extrapolate: 'clamp',
   });
 
+  // Get label for current filter
+  const getFilterLabel = (filter) => {
+    const option = FILTER_OPTIONS.find(f => f.key === filter);
+    return option ? option.label : 'Month';
+  };
+
+  // Fetch filtered revenue based on selected filter
+  const fetchFilteredRevenue = async (filter) => {
+    try {
+      let revenue = 0;
+      let trendData = {
+        series: [],
+        peak: 0,
+        currentPeriod: 0,
+        previousPeriod: 0,
+        changePercent: 0,
+        totalRevenue: 0
+      };
+
+      switch (filter) {
+        case 'today':
+          revenue = await getRevenueToday();
+          trendData = {
+            series: [{ monthKey: 'today', monthLabel: 'Today', total: revenue }],
+            peak: revenue,
+            currentPeriod: revenue,
+            previousPeriod: 0,
+            changePercent: 0,
+            totalRevenue: revenue
+          };
+          break;
+        case 'week':
+          revenue = await getRevenueThisWeek();
+          trendData = {
+            series: [{ monthKey: 'week', monthLabel: 'This Week', total: revenue }],
+            peak: revenue,
+            currentPeriod: revenue,
+            previousPeriod: 0,
+            changePercent: 0,
+            totalRevenue: revenue
+          };
+          break;
+        case 'month':
+          revenue = await getRevenueThisMonth();
+          trendData = {
+            series: [{ monthKey: 'month', monthLabel: 'This Month', total: revenue }],
+            peak: revenue,
+            currentPeriod: revenue,
+            previousPeriod: 0,
+            changePercent: 0,
+            totalRevenue: revenue
+          };
+          break;
+        case '3months':
+        case '6months':
+          const trendResult = await getRevenueTrendCustom(getMonthsFromFilter(filter));
+          revenue = trendResult.totalRevenue;
+          trendData = {
+            series: trendResult.series,
+            peak: trendResult.peak,
+            currentPeriod: trendResult.currentPeriod,
+            previousPeriod: trendResult.previousPeriod,
+            changePercent: trendResult.changePercent,
+            totalRevenue: trendResult.totalRevenue,
+          };
+          break;
+        default:
+          revenue = await getRevenueThisMonth();
+          trendData = {
+            series: [{ monthKey: 'month', monthLabel: 'This Month', total: revenue }],
+            peak: revenue,
+            currentPeriod: revenue,
+            previousPeriod: 0,
+            changePercent: 0,
+            totalRevenue: revenue
+          };
+      }
+      setFilteredRevenue(revenue);
+      setTrend(trendData);
+    } catch (error) {
+      console.error('Error fetching filtered revenue:', error);
+      setFilteredRevenue(0);
+    }
+  };
+
   const loadDashboardData = useCallback(async () => {
     try {
-      const [snapshotResult, trendResult] = await Promise.all([
+      const [snapshotResult] = await Promise.all([
         getDashboardSnapshot(),
-        getDashboardRevenueTrend(6),
       ]);
       setSnapshot(snapshotResult);
-      setTrend(trendResult);
-    } catch {
+      await fetchFilteredRevenue(selectedFilter);
+    } catch (error) {
       showError('Unable to load dashboard insights');
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [selectedFilter]);
 
   useEffect(() => { loadDashboardData(); }, [loadDashboardData]);
 
@@ -194,6 +339,52 @@ export default function HomeScreen() {
     setRefreshing(true);
     await loadDashboardData();
     setRefreshing(false);
+  };
+
+  const handleFilterChange = async (filter) => {
+    setSelectedFilter(filter);
+  };
+
+  // Get chart subtitle based on filter
+  const getChartSubtitle = () => {
+    switch (selectedFilter) {
+      case 'today':
+        return 'Today';
+      case 'week':
+        return 'This Week';
+      case 'month':
+        return 'This Month';
+      case '3months':
+        return 'Last 3 Months';
+      case '6months':
+        return 'Last 6 Months';
+      default:
+        return 'This Month';
+    }
+  };
+
+  // ─── Filter Button Component ─────────────────────────────────────────────
+  const FilterButton = ({ filterKey, label }) => {
+    const isSelected = selectedFilter === filterKey;
+    return (
+      <TouchableOpacity
+        style={[
+          styles.filterButton,
+          isSelected && styles.filterButtonSelected,
+        ]}
+        onPress={() => handleFilterChange(filterKey)}
+        activeOpacity={0.7}
+      >
+        <Text
+          style={[
+            styles.filterButtonText,
+            isSelected && styles.filterButtonTextSelected,
+          ]}
+        >
+          {label}
+        </Text>
+      </TouchableOpacity>
+    );
   };
 
   const healthScore = useMemo(() => {
@@ -278,10 +469,17 @@ export default function HomeScreen() {
         {/* Hero Card */}
         <View style={styles.heroCard}>
           <View style={styles.heroBadge}>
-            <Text style={styles.heroBadgeText}>LIFETIME REVENUE</Text>
+            <Text style={styles.heroBadgeText}>REVENUE</Text>
           </View>
 
-          <Text style={styles.heroAmount}>{pkr(snapshot.lifetimeRevenue)}</Text>
+          <Text style={styles.heroAmount}>{pkr(filteredRevenue)}</Text>
+
+          {/* Filter Buttons */}
+          <View style={styles.filterContainer}>
+            {FILTER_OPTIONS.map((option) => (
+              <FilterButton key={option.key} filterKey={option.key} label={option.label} />
+            ))}
+          </View>
 
           <View style={styles.heroMetrics}>
             <View style={styles.heroMetric}>
@@ -332,14 +530,14 @@ export default function HomeScreen() {
           <CompactStatCard
             delay={250}
             icon="wallet-outline"
-            title="This Month"
-            value={shortPKR(snapshot.revenueThisMonth)}
+            title={getFilterLabel(selectedFilter)}
+            value={shortPKR(filteredRevenue)}
             color="#34C759"
           />
         </View>
 
         {/* Revenue Chart */}
-        <RevenueChart data={trend.series} peak={trend.peak} />
+        <RevenueChart data={trend.series} peak={trend.peak} subtitle={getChartSubtitle()} />
 
         {/* Insights Section */}
         <View style={styles.insightsSection}>
@@ -428,7 +626,7 @@ export default function HomeScreen() {
   );
 }
 
-// ─── Updated Styles ─────────────────────────────────────────────────────────
+// ─── Styles ─────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -548,7 +746,33 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#1E293B',
     letterSpacing: -1,
+    marginBottom: 16,
+  },
+  filterContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 4,
     marginBottom: 20,
+  },
+  filterButton: {
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: '#F1F5F9',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+  },
+  filterButtonSelected: {
+    backgroundColor: '#E53935',
+    borderColor: '#E53935',
+  },
+  filterButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#64748B',
+  },
+  filterButtonTextSelected: {
+    color: '#FFFFFF',
   },
   heroMetrics: {
     flexDirection: 'row',
@@ -588,7 +812,7 @@ const styles = StyleSheet.create({
     borderRadius: 4,
   },
 
-  // Compact Stats Grid - NEW DESIGN
+  // Compact Stats Grid
   compactStatsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
